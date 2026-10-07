@@ -116,6 +116,39 @@
       border-color: var(--link);
       box-shadow: 0 0 0 2px rgba(0,86,179,0.15);
     }
+    .suggest-box {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border: 1px solid var(--border-dark);
+      border-radius: 0 0 4px 4px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 100;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .suggest-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 13px;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .suggest-item:hover, .suggest-item.active {
+      background: #f0f4f9;
+      color: var(--link);
+    }
+    .suggest-tag {
+      font-size: 10px;
+      padding: 1px 5px;
+      background: #e9ecef;
+      color: #666;
+      border-radius: 3px;
+    }
     select {
       padding: 7px 10px;
       font-size: 13px;
@@ -266,7 +299,8 @@
   <div class="controls-wrapper">
     <div class="controls">
       <div class="search-box">
-        <input type="text" id="searchInput" placeholder="曲名、本家アーティスト、ライバー名で検索... (例: シャルル, King Gnu, 葛葉)" autofocus>
+        <input type="text" id="searchInput" placeholder="曲名、アーティスト、ライバー名 (ひらがな対応 例: かいだはる, しゃるる, ぴのきお)" autocomplete="off" autofocus>
+        <div id="suggestBox" class="suggest-box" style="display: none;"></div>
       </div>
       
       <select id="liverSelect">
@@ -415,9 +449,18 @@
           const normTitle = normalizeSearch(item.title);
           const normArtist = normalizeSearch(item.artist);
           const normLiver = normalizeSearch(item.liver);
-          if (!normTitle.includes(normQuery) && !normArtist.includes(normQuery) && !normLiver.includes(normQuery)) {
-            return false;
-          }
+          const normKanaTitle = normalizeSearch(item.kana_title);
+          const normKanaArtist = normalizeSearch(item.kana_artist);
+          const normKanaLiver = normalizeSearch(item.kana_liver);
+
+          const isMatch = normTitle.includes(normQuery) || 
+                          normArtist.includes(normQuery) || 
+                          normLiver.includes(normQuery) ||
+                          (normKanaTitle && normKanaTitle.includes(normQuery)) ||
+                          (normKanaArtist && normKanaArtist.includes(normQuery)) ||
+                          (normKanaLiver && normKanaLiver.includes(normQuery));
+
+          if (!isMatch) return false;
         }
 
         return true;
@@ -435,7 +478,145 @@
       }
 
       renderTable();
+      updateSuggestBox(rawQuery);
     }
+
+    // --- Google風サジェスト＆オートコンプリート機能 ---
+    let currentSuggestIndex = -1;
+    let activeSuggestList = [];
+
+    function updateSuggestBox(query) {
+      const suggestBox = document.getElementById('suggestBox');
+      const normQ = normalizeSearch(query);
+
+      if (!normQ || normQ.length < 1) {
+        suggestBox.style.display = 'none';
+        suggestBox.innerHTML = '';
+        activeSuggestList = [];
+        currentSuggestIndex = -1;
+        return;
+      }
+
+      const candidates = new Map();
+
+      // ライバー名
+      allRecords.forEach(r => {
+        if (r.liver) {
+          const nL = normalizeSearch(r.liver);
+          const nKL = normalizeSearch(r.kana_liver);
+          if (nL.includes(normQ) || (nKL && nKL.includes(normQ))) {
+            candidates.set(`liver:${r.liver}`, { text: r.liver, type: 'ライバー' });
+          }
+        }
+      });
+
+      // 曲名
+      allRecords.forEach(r => {
+        if (r.title && candidates.size < 8) {
+          const nT = normalizeSearch(r.title);
+          const nKT = normalizeSearch(r.kana_title);
+          if (nT.includes(normQ) || (nKT && nKT.includes(normQ))) {
+            candidates.set(`title:${r.title}`, { text: r.title, type: '曲名' });
+          }
+        }
+      });
+
+      // アーティスト名
+      allRecords.forEach(r => {
+        if (r.artist && candidates.size < 12) {
+          const nA = normalizeSearch(r.artist);
+          const nKA = normalizeSearch(r.kana_artist);
+          if (nA.includes(normQ) || (nKA && nKA.includes(normQ))) {
+            candidates.set(`artist:${r.artist}`, { text: r.artist, type: '本家' });
+          }
+        }
+      });
+
+      activeSuggestList = Array.from(candidates.values()).slice(0, 7);
+
+      if (activeSuggestList.length === 0) {
+        suggestBox.style.display = 'none';
+        suggestBox.innerHTML = '';
+        currentSuggestIndex = -1;
+        return;
+      }
+
+      currentSuggestIndex = -1;
+      suggestBox.innerHTML = activeSuggestList.map((item, idx) => `
+        <div class="suggest-item" data-idx="${idx}">
+          <span>${escapeHtml(item.text)}</span>
+          <span class="suggest-tag">${escapeHtml(item.type)}</span>
+        </div>
+      `).join('');
+
+      suggestBox.style.display = 'block';
+
+      // クリック補完
+      suggestBox.querySelectorAll('.suggest-item').forEach(el => {
+        el.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const idx = parseInt(el.getAttribute('data-idx'));
+          selectSuggestItem(idx);
+        });
+      });
+    }
+
+    function selectSuggestItem(idx) {
+      if (idx >= 0 && idx < activeSuggestList.length) {
+        const item = activeSuggestList[idx];
+        const input = document.getElementById('searchInput');
+        input.value = item.text;
+        document.getElementById('suggestBox').style.display = 'none';
+        applyFilterAndSort();
+      }
+    }
+
+    // キーボード操作（Enter一発確定・上下矢印選択）
+    const searchInputEl = document.getElementById('searchInput');
+    searchInputEl.addEventListener('keydown', (e) => {
+      const suggestBox = document.getElementById('suggestBox');
+      const items = suggestBox.querySelectorAll('.suggest-item');
+
+      if (suggestBox.style.display === 'block' && items.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          currentSuggestIndex = (currentSuggestIndex + 1) % items.length;
+          highlightSuggestItem(items);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          currentSuggestIndex = (currentSuggestIndex - 1 + items.length) % items.length;
+          highlightSuggestItem(items);
+        } else if (e.key === 'Enter') {
+          if (currentSuggestIndex >= 0) {
+            e.preventDefault();
+            selectSuggestItem(currentSuggestIndex);
+          } else if (items.length > 0) {
+            // 候補の1番目をEnter一発で選択
+            e.preventDefault();
+            selectSuggestItem(0);
+          }
+        } else if (e.key === 'Escape') {
+          suggestBox.style.display = 'none';
+        }
+      }
+    });
+
+    function highlightSuggestItem(items) {
+      items.forEach((it, idx) => {
+        if (idx === currentSuggestIndex) {
+          it.classList.add('active');
+        } else {
+          it.classList.remove('active');
+        }
+      });
+    }
+
+    // フォーカス外れたらサジェスト非表示
+    searchInputEl.addEventListener('blur', () => {
+      setTimeout(() => {
+        document.getElementById('suggestBox').style.display = 'none';
+      }, 200);
+    });
 
     function renderTable() {
       const tbody = document.getElementById('tableBody');
