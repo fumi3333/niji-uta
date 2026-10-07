@@ -1,11 +1,17 @@
+import os
 import json
 import re
 
-# 2,409曲の精密アーティスト辞書を読み込み
-with open('C:/niji-uta/scratch/precise_artist_dict.json', 'r', encoding='utf-8') as f:
-    PRECISE_MAP = json.load(f)
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(CURRENT_DIR, "..", "data")
+DICT_PATH = os.path.join(DATA_DIR, "precise_artist_dict.json")
 
-# 主要ボカロP・J-POP著名曲の確定的手動マッピング（キノピオピー / ピノキオピー含む）
+PRECISE_MAP = {}
+if os.path.exists(DICT_PATH):
+    with open(DICT_PATH, "r", encoding="utf-8") as f:
+        PRECISE_MAP = json.load(f)
+
+# 主要ボカロP・J-POP著名曲の確定的手動マッピング
 MANUAL_MAP = {
     # ピノキオピー（キノピオピー）
     "神っぽいな": "ピノキオピー",
@@ -98,105 +104,6 @@ MANUAL_MAP = {
     "エバ": "柊キライ",
     "ラブカ？": "柊キライ",
     "ヴィータ": "柊キライ",
-    "ベノム": "かいりきベア",
-    "ダーリンダンス": "かいりきベア",
-    "アンヘル": "かいりきベア",
-    "ルマ": "かいりきベア",
-    "メンタルチェンソー": "かいりきベア",
-    "バグ": "かいりきベア",
-    "失敗作少女": "かいりきベア",
-    "マネマネサイコトロピック": "かいりきベア",
-    "アルカリレットウセイ": "かいりきベア",
-    "テレキャスタービーボーイ": "すりぃ",
-    "ジャンキーナイトタウンオーケストラ": "すりぃ",
-    "カメレオン": "すりぃ",
-    "エゴロック": "すりぃ",
-    "ビーバー": "すりぃ",
-    "ラグトレイン": "稲葉曇",
-    "ロストアンブレラ": "稲葉曇",
-    "春嵐": "john",
-    "ヒアソビ": "かめりあ",
-    "マーシャル・マキシマイザー": "柊マグネタイト",
-    "ロウワー": "ぬゆり",
-    "フィクサー": "ぬゆり",
-    "フラジール": "ぬゆり",
-    "命ばっかり": "ぬゆり",
-    "ターミナル": "ぬゆり",
-    "砂の惑星": "ハチ (米津玄師)",
-    "マトリョシカ": "ハチ (米津玄師)",
-    "パンダヒーロー": "ハチ (米津玄師)",
-    "結ンデ開イテ羅刹ト屍": "ハチ (米津玄師)",
-    "ドーナツホール": "ハチ (米津玄師)",
-    "リンネ": "ハチ (米津玄師)",
-    "演劇テレプシコーラ": "ハチ (米津玄師)",
-    "からくりピエロ": "40mP",
-    "トリノコシティ": "40mP",
-    "恋愛裁判": "40mP",
-    "シリョクケンサ": "40mP",
-    "キリトリセン": "40mP",
-    "ドレミファロンド": "40mP",
-    "メルト": "ryo (supercell)",
-    "ワールドイズマイン": "ryo (supercell)",
-    "ブラック★ロックシューター": "ryo (supercell)",
-    "初めての恋が終わる時": "ryo (supercell)",
-    "ODDS&ENDS": "ryo (supercell)",
-    "千本桜": "WhiteFlame (黒うさP)",
-    "カンタレラ": "WhiteFlame (黒うさP)",
-    "ACUTE": "WhiteFlame (黒うさP)",
-    "六兆年と一夜物語": "kemu",
-    "人生リセットボタン": "kemu",
-    "インビジブル": "kemu",
-    "イカサマライフゲイム": "kemu",
-    "地球最後の告白を": "kemu",
-    "拝啓ドッペルゲンガー": "kemu",
-    "チュルリラ・チュルリラ・ダッダッダ！": "和田たけあき(くらげP)",
-    "キライ・キライ・ジガヒダイ！": "和田たけあき(くらげP)",
-    "トラフィック・ジャム": "煮ル果実",
-    "ヲズワルド": "煮ル果実",
-    "紗痲": "煮ル果実",
-    "Kilmer": "煮ル果実",
-    "夜咄ディセイブ": "じん",
-    "DAYBREAK FRONTLINE": "Orangestar",
-    "アスノヨゾラ哨戒班": "Orangestar",
-    "快晴": "Orangestar",
-    "Alice in 冷凍庫": "Orangestar",
-    "回る空うさぎ": "Orangestar",
-    "Surges": "Orangestar",
-    "イヤホンと蝉時雨": "Orangestar",
-    "Henceforth": "Orangestar",
-    "雨き声残響": "Orangestar",
-    "だれかの心臓になれたなら": "ユリイ・カノン",
-    "スーサイドパレヱド": "ユリイ・カノン",
-    "少女地獄": "ユリイ・カノン",
-    "お気に召すまま": "Eve",
-    "ドラマツルギー": "Eve",
-    "ナンセンス文学": "Eve",
-    "廻廻奇譚": "Eve",
-    "心予報": "Eve",
-    "アウトサイダー": "Eve",
-    "ラストダンス": "Eve",
-    "トーキョーゲットー": "Eve",
-    "いのちの食べ方": "Eve",
-    "レーゾンデートル": "Eve",
-    "僕らまだアンダーグラウンド": "Eve",
-    "アヴァン": "Eve",
-    "ファタール": "GEMN (中島健人×キタニタツヤ)",
-    "青のすみか": "キタニタツヤ",
-    "悪魔の子": "ヒグチアイ",
-    "怪獣の花唄": "Vaundy",
-    "踊り子": "Vaundy",
-    "不可幸力": "Vaundy",
-    "東京フラッシュ": "Vaundy",
-    "napori": "Vaundy",
-    "花占い": "Vaundy",
-    "タイムパラドックス": "Vaundy",
-    "CHAINSAW BLOOD": "Vaundy",
-    "逆光": "Ado",
-    "新時代": "Ado",
-    "私は最強": "Ado",
-    "ウタカタララバイ": "Ado",
-    "Tot Musica": "Ado",
-    "世界のつづき": "Ado",
     "風のゆくえ": "Ado",
     "ギラギラ": "Ado",
     "うっせぇわ": "Ado",
@@ -249,7 +156,7 @@ def get_real_artist(title, default_artist=""):
     # 1. 完全一致マニュアル
     if clean_title in MANUAL_MAP:
         return MANUAL_MAP[clean_title]
-    # 2. 精密辞書（他ライバーシートから抽出した2,409曲）
+    # 2. 精密辞書
     if clean_title in PRECISE_MAP:
         return PRECISE_MAP[clean_title]
     # 3. 大文字小文字・部分一致
