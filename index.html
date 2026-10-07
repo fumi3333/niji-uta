@@ -257,8 +257,8 @@
         <h1>にじ歌サーチ <span class="badge">非公式</span></h1>
         <span class="subtext">にじさんじ歌枠・歌唱タイムスタンプ検索データベース</span>
       </div>
-      <div class="meta-info">
-        最終更新: 2026-10-07 20:15 | 収録データ: 6,572件
+      <div class="meta-info" id="metaInfo">
+        最終更新: 2026-10-07 20:45 | 収録データ: 9,358件
       </div>
     </div>
   </header>
@@ -266,7 +266,7 @@
   <div class="controls-wrapper">
     <div class="controls">
       <div class="search-box">
-        <input type="text" id="searchInput" placeholder="曲名、本家アーティスト、ライバー名で検索... (例: シャルル, バルーン, 葛葉)" autofocus>
+        <input type="text" id="searchInput" placeholder="曲名、本家アーティスト、ライバー名で検索... (例: シャルル, King Gnu, 葛葉)" autofocus>
       </div>
       
       <select id="liverSelect">
@@ -329,6 +329,11 @@
         const res = await fetch('./data/song_performances.json');
         allRecords = await res.json();
         
+        const metaEl = document.getElementById('metaInfo');
+        if (metaEl) {
+          metaEl.textContent = `最終更新: 2026-10-07 20:45 | 収録データ: ${allRecords.length.toLocaleString()}件`;
+        }
+
         populateLiverSelect();
         restoreStateFromUrl();
         applyFilterAndSort(false);
@@ -384,8 +389,16 @@
       }
     }
 
+    function normalizeSearch(str) {
+      if (!str) return '';
+      return String(str)
+        .toLowerCase()
+        .replace(/[\s\u3000\-_・/]+/g, ''); // 空白・ハイフン・中黒を完全無視して突合
+    }
+
     function applyFilterAndSort(shouldUpdateUrl = true) {
-      const q = document.getElementById('searchInput').value.trim().toLowerCase();
+      const rawQuery = document.getElementById('searchInput').value.trim();
+      const normQuery = normalizeSearch(rawQuery);
       const selectedLiver = document.getElementById('liverSelect').value;
       const sortMode = document.getElementById('sortSelect').value;
 
@@ -398,11 +411,13 @@
           return false;
         }
 
-        if (q) {
-          const matchTitle = (item.title || '').toLowerCase().includes(q);
-          const matchArtist = (item.artist || '').toLowerCase().includes(q);
-          const matchLiver = (item.liver || '').toLowerCase().includes(q);
-          if (!matchTitle && !matchArtist && !matchLiver) return false;
+        if (normQuery) {
+          const normTitle = normalizeSearch(item.title);
+          const normArtist = normalizeSearch(item.artist);
+          const normLiver = normalizeSearch(item.liver);
+          if (!normTitle.includes(normQuery) && !normArtist.includes(normQuery) && !normLiver.includes(normQuery)) {
+            return false;
+          }
         }
 
         return true;
