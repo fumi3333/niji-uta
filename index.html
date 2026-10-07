@@ -192,20 +192,9 @@
     .col-time { width: 75px; text-align: center; font-family: var(--font-mono); font-size: 12px; color: #333; }
     .col-action { width: 110px; text-align: center; white-space: nowrap; }
 
-    .liver-badge {
-      display: inline-block;
-      background: #eef2f7;
-      color: #1a2a3a;
-      border: 1px solid #d0d7de;
-      padding: 2px 7px;
-      border-radius: 3px;
+    .liver-text {
       font-weight: 500;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .liver-badge:hover {
-      background: #dfe6ee;
-      border-color: #bcc8d4;
+      color: #24292f;
     }
 
     .btn-play {
@@ -341,7 +330,8 @@
         allRecords = await res.json();
         
         populateLiverSelect();
-        applyFilterAndSort();
+        restoreStateFromUrl();
+        applyFilterAndSort(false);
       } catch (err) {
         document.getElementById('tableBody').innerHTML = 
           `<tr><td colspan="7" style="text-align:center; padding:30px; color:#c00;">データの読み込みに失敗しました (${err.message})</td></tr>`;
@@ -367,15 +357,41 @@
       });
     }
 
-    function filterByLiver(liverName) {
-      document.getElementById('liverSelect').value = liverName;
-      applyFilterAndSort();
+    function restoreStateFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get('q');
+      const liver = params.get('liver');
+      const sort = params.get('sort');
+
+      if (q !== null) document.getElementById('searchInput').value = q;
+      if (liver !== null) document.getElementById('liverSelect').value = liver;
+      if (sort !== null) document.getElementById('sortSelect').value = sort;
     }
 
-    function applyFilterAndSort() {
+    function updateUrlParams() {
+      const q = document.getElementById('searchInput').value.trim();
+      const liver = document.getElementById('liverSelect').value;
+      const sort = document.getElementById('sortSelect').value;
+
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      if (liver) params.set('liver', liver);
+      if (sort && sort !== 'date_desc') params.set('sort', sort);
+
+      const newUrl = params.toString() ? `${window.location.pathname}?${params.toString()}` : window.location.pathname;
+      if (window.location.search !== (params.toString() ? `?${params.toString()}` : '')) {
+        history.replaceState(null, '', newUrl);
+      }
+    }
+
+    function applyFilterAndSort(shouldUpdateUrl = true) {
       const q = document.getElementById('searchInput').value.trim().toLowerCase();
       const selectedLiver = document.getElementById('liverSelect').value;
       const sortMode = document.getElementById('sortSelect').value;
+
+      if (shouldUpdateUrl) {
+        updateUrlParams();
+      }
 
       currentFiltered = allRecords.filter(item => {
         if (selectedLiver && item.liver !== selectedLiver) {
@@ -426,9 +442,7 @@
             <td class="col-title">${escapeHtml(item.title)}</td>
             <td class="col-artist">${escapeHtml(item.artist)}</td>
             <td class="col-liver">
-              <span class="liver-badge" onclick="filterByLiver('${escapeHtml(item.liver)}')">
-                ${escapeHtml(item.liver)}
-              </span>
+              <span class="liver-text">${escapeHtml(item.liver)}</span>
             </td>
             <td class="col-date">${escapeHtml(item.date || '-')}</td>
             <td class="col-time">${escapeHtml(item.timestamp || '-')}</td>
@@ -466,9 +480,14 @@
       applyFilterAndSort();
     }
 
-    document.getElementById('searchInput').addEventListener('input', applyFilterAndSort);
-    document.getElementById('liverSelect').addEventListener('change', applyFilterAndSort);
-    document.getElementById('sortSelect').addEventListener('change', applyFilterAndSort);
+    document.getElementById('searchInput').addEventListener('input', () => applyFilterAndSort());
+    document.getElementById('liverSelect').addEventListener('change', () => applyFilterAndSort());
+    document.getElementById('sortSelect').addEventListener('change', () => applyFilterAndSort());
+
+    window.addEventListener('popstate', () => {
+      restoreStateFromUrl();
+      applyFilterAndSort(false);
+    });
 
     init();
   </script>
