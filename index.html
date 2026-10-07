@@ -182,6 +182,22 @@
       white-space: nowrap;
     }
 
+    .tag-btn {
+      background: #f1f3f5;
+      border: 1px solid #ced4da;
+      border-radius: 12px;
+      padding: 3px 10px;
+      font-size: 11px;
+      color: #333;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tag-btn:hover {
+      background: #e2e6ea;
+      border-color: #adb5bd;
+      color: var(--link);
+    }
+
     /* データテーブル（Excelライク） */
     main {
       max-width: 1240px;
@@ -316,12 +332,12 @@
   <div class="controls-wrapper">
     <div class="controls">
       <div class="search-box">
-        <input type="text" id="searchInput" placeholder="曲名、アーティスト、ライバー名 (ひらがな対応 例: かいだはる, しゃるる, ぴのきお)" autocomplete="off" autofocus>
+        <input type="text" id="searchInput" placeholder="曲名、アーティスト、ライバー名で検索 (ひらがな対応 / 複数ワード・空白区切りOK)" autocomplete="off" autofocus>
         <div id="suggestBox" class="suggest-box" style="display: none;"></div>
       </div>
       
       <select id="liverSelect">
-        <option value="">すべてのライバー</option>
+        <option value="">すべてのライバー (94名)</option>
       </select>
 
       <select id="sortSelect">
@@ -334,6 +350,20 @@
       <div class="count-indicator" id="countIndicator">
         表示: 0 / 0 件
       </div>
+    </div>
+    
+    <!-- 人気クイックタグ -->
+    <div class="quick-tags" style="max-width: 1240px; margin: 8px auto 0 auto; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px;">
+      <span style="color: var(--text-muted); font-size: 11px;">人気の曲・ライバー:</span>
+      <button type="button" class="tag-btn" onclick="setQuickSearch('シャルル')">シャルル</button>
+      <button type="button" class="tag-btn" onclick="setQuickSearch('ヴァンパイア')">ヴァンパイア</button>
+      <button type="button" class="tag-btn" onclick="setQuickSearch('フォニイ')">フォニイ</button>
+      <button type="button" class="tag-btn" onclick="setQuickSearch('KING')">KING</button>
+      <button type="button" class="tag-btn" onclick="setQuickSearch('甲斐田晴')">甲斐田晴</button>
+      <button type="button" class="tag-btn" onclick="setQuickSearch('緑仙')">緑仙</button>
+      <button type="button" class="tag-btn" onclick="setQuickSearch('弦月藤士郎')">弦月藤士郎</button>
+      <button type="button" class="tag-btn" onclick="setQuickSearch('ドーラ')">ドーラ</button>
+      <button type="button" class="tag-btn" onclick="setQuickSearch('')" style="background:#fff; border-color:#999; color:#666;">クリア</button>
     </div>
   </div>
 
@@ -447,9 +477,15 @@
         .replace(/[\s\u3000\-_・/]+/g, ''); // 空白・ハイフン・中黒を完全無視して突合
     }
 
+    function setQuickSearch(word) {
+      const input = document.getElementById('searchInput');
+      input.value = word;
+      applyFilterAndSort();
+      input.focus();
+    }
+
     function applyFilterAndSort(shouldUpdateUrl = true) {
       const rawQuery = document.getElementById('searchInput').value.trim();
-      const normQuery = normalizeSearch(rawQuery);
       const selectedLiver = document.getElementById('liverSelect').value;
       const sortMode = document.getElementById('sortSelect').value;
 
@@ -457,12 +493,25 @@
         updateUrlParams();
       }
 
+      // 検索ワードを空白で分割（AND検索）
+      // 「にじさんじ」「歌ってみた」「歌枠」「2時3時」などの全体キーワードはストップワードとして除外（全件該当のため）
+      const stopWords = ['にじさんじ', 'にじ', '歌ってみた', 'うたってみた', '歌枠', 'うたわく', '2時3時', '2じ3じ', 'vtuber', 'ブイチューバー'];
+      let queryWords = rawQuery
+        .split(/[\s\u3000]+/)
+        .map(w => w.trim())
+        .filter(w => w.length > 0);
+
+      // 有効な個別検索語群（ストップワード除去）
+      const filteredWords = queryWords.filter(w => !stopWords.includes(w.toLowerCase()));
+      // もしユーザーが「にじさんじ 歌ってみた」だけを入力した場合は全件表示にする
+      const effectiveWords = filteredWords.length > 0 ? filteredWords : [];
+
       currentFiltered = allRecords.filter(item => {
         if (selectedLiver && item.liver !== selectedLiver) {
           return false;
         }
 
-        if (normQuery) {
+        if (effectiveWords.length > 0) {
           const normTitle = normalizeSearch(item.title);
           const normArtist = normalizeSearch(item.artist);
           const normLiver = normalizeSearch(item.liver);
@@ -470,14 +519,18 @@
           const normKanaArtist = normalizeSearch(item.kana_artist);
           const normKanaLiver = normalizeSearch(item.kana_liver);
 
-          const isMatch = normTitle.includes(normQuery) || 
-                          normArtist.includes(normQuery) || 
-                          normLiver.includes(normQuery) ||
-                          (normKanaTitle && normKanaTitle.includes(normQuery)) ||
-                          (normKanaArtist && normKanaArtist.includes(normQuery)) ||
-                          (normKanaLiver && normKanaLiver.includes(normQuery));
+          // すべての単語が、曲名・アーティスト・ライバー（かな含む）のどこかに含まれているか (AND検索)
+          const allMatch = effectiveWords.every(word => {
+            const nw = normalizeSearch(word);
+            return normTitle.includes(nw) || 
+                   normArtist.includes(nw) || 
+                   normLiver.includes(nw) ||
+                   (normKanaTitle && normKanaTitle.includes(nw)) ||
+                   (normKanaArtist && normKanaArtist.includes(nw)) ||
+                   (normKanaLiver && normKanaLiver.includes(nw));
+          });
 
-          if (!isMatch) return false;
+          if (!allMatch) return false;
         }
 
         return true;
@@ -504,7 +557,14 @@
 
     function updateSuggestBox(query) {
       const suggestBox = document.getElementById('suggestBox');
-      const normQ = normalizeSearch(query);
+      const stopWords = ['にじさんじ', 'にじ', '歌ってみた', 'うたってみた', '歌枠', 'うたわく', '2時3時', '2じ3じ', 'vtuber', 'ブイチューバー'];
+      let words = query
+        .split(/[\s\u3000]+/)
+        .map(w => w.trim())
+        .filter(w => w.length > 0 && !stopWords.includes(w.toLowerCase()));
+
+      const lastWord = words.length > 0 ? words[words.length - 1] : '';
+      const normQ = normalizeSearch(lastWord);
 
       if (!normQ || normQ.length < 1) {
         suggestBox.style.display = 'none';
@@ -655,7 +715,9 @@
             <td class="col-title">${escapeHtml(item.title)}</td>
             <td class="col-artist">${escapeHtml(item.artist)}</td>
             <td class="col-liver">
-              <span class="liver-text">${escapeHtml(item.liver)}</span>
+              <span class="liver-text" style="cursor: pointer; text-decoration: underline; text-decoration-color: #ced4da;" onclick="setQuickSearch('${escapeHtml(item.liver)}')" title="このライバーで絞り込む">
+                ${escapeHtml(item.liver)}
+              </span>
             </td>
             <td class="col-date">${escapeHtml(item.date || '-')}</td>
             <td class="col-time">${escapeHtml(item.timestamp || '-')}</td>
