@@ -1,0 +1,16 @@
+{
+  "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "niji-uta.vercel.app"
+        }
+      ],
+      "destination": "https://nijiuta.fumiproject.dev/$1",
+      "permanent": true
+    }
+  ]
+}
