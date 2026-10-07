@@ -245,8 +245,20 @@
     tr:nth-child(even) {
       background: var(--row-alt);
     }
-    tr:hover {
-      background: var(--row-hover) !important;
+    tr.row-playing {
+      background: #e8f0fe !important;
+      border-left: 3px solid var(--link);
+    }
+
+    .btn-play.playing {
+      background: var(--accent);
+      color: #fff;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
     }
 
     /* 列幅・スタイリング */
@@ -308,9 +320,25 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 280px;
+      max-width: 190px;
       font-weight: 500;
+      color: #eee;
     }
+    .mini-player-btn {
+      cursor: pointer;
+      background: #444;
+      border: 1px solid #555;
+      color: #fff;
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-size: 11px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.1s;
+    }
+    .mini-player-btn:hover { background: #666; }
     .mini-player-close {
       cursor: pointer;
       background: none;
@@ -458,8 +486,15 @@
   <!-- フローティングYouTubeミニプレーヤー -->
   <div id="miniPlayer" class="mini-player-container">
     <div class="mini-player-header">
-      <span id="miniPlayerTitle" class="mini-player-title">再生中...</span>
-      <button type="button" class="mini-player-close" onclick="closeMiniPlayer()" title="閉じる">✕</button>
+      <div style="display:flex; align-items:center; gap:6px; overflow:hidden;">
+        <button type="button" class="mini-player-btn" onclick="playPrevSong()" title="前の曲">⏮</button>
+        <button type="button" class="mini-player-btn" onclick="playNextSong()" title="次の曲">⏭</button>
+        <span id="miniPlayerTitle" class="mini-player-title">再生中...</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <a id="miniPlayerYtLink" href="#" target="_blank" rel="noopener" class="mini-player-btn" title="YouTubeで開く" style="text-decoration:none; font-size:11px;">↗</a>
+        <button type="button" class="mini-player-close" onclick="closeMiniPlayer()" title="閉じる">✕</button>
+      </div>
     </div>
     <div class="mini-player-iframe-wrap">
       <div id="playerSlot"></div>
@@ -790,8 +825,9 @@
 
       const html = displayRows.map((item, idx) => {
         const timeLabel = item.timestamp && item.timestamp !== "歌い出し" ? item.timestamp : "再生";
+        const isCurrent = currentPlayingIndex === idx;
         return `
-          <tr>
+          <tr class="${isCurrent ? 'row-playing' : ''}" data-idx="${idx}">
             <td class="col-id">${idx + 1}</td>
             <td class="col-title">${escapeHtml(item.title)}</td>
             <td class="col-artist">${escapeHtml(item.artist)}</td>
@@ -803,8 +839,8 @@
             <td class="col-date">${escapeHtml(item.date || '-')}</td>
             <td class="col-time">${escapeHtml(item.timestamp || '-')}</td>
             <td class="col-action">
-              <button type="button" class="btn-play" onclick="playInMiniPlayer('${escapeHtml(item.youtube_url)}', '${escapeHtml(item.title)}', '${escapeHtml(item.liver)}')">
-                ▶ ${escapeHtml(timeLabel)}
+              <button type="button" class="btn-play ${isCurrent ? 'playing' : ''}" onclick="playRow(${idx})">
+                ${isCurrent ? '● 再生中' : '▶ ' + escapeHtml(timeLabel)}
               </button>
             </td>
           </tr>
@@ -840,19 +876,39 @@
     document.getElementById('liverSelect').addEventListener('change', () => applyFilterAndSort());
     document.getElementById('sortSelect').addEventListener('change', () => applyFilterAndSort());
 
+    // --- 連続再生・ミニプレーヤー制御 ---
+    let currentPlayingIndex = -1;
+
+    function playRow(idx) {
+      if (idx >= 0 && idx < currentFiltered.length) {
+        currentPlayingIndex = idx;
+        const item = currentFiltered[idx];
+        playInMiniPlayer(item.youtube_url, item.title, item.liver);
+        renderTable();
+      }
+    }
+
+    function playNextSong() {
+      if (currentFiltered.length === 0) return;
+      const nextIdx = (currentPlayingIndex + 1) % currentFiltered.length;
+      playRow(nextIdx);
+    }
+
+    function playPrevSong() {
+      if (currentFiltered.length === 0) return;
+      const prevIdx = (currentPlayingIndex - 1 + currentFiltered.length) % currentFiltered.length;
+      playRow(prevIdx);
+    }
+
     function playInMiniPlayer(youtubeUrl, title, liver) {
       if (!youtubeUrl) return;
 
       let videoId = "";
       let startSeconds = 0;
 
-      // Extract video ID
       const mId = youtubeUrl.match(/(?:youtu\.be\/|v=|\/embed\/|\/watch\?v=)([a-zA-Z0-9_-]{11})/);
-      if (mId) {
-        videoId = mId[1];
-      }
+      if (mId) videoId = mId[1];
 
-      // Extract start seconds
       if (youtubeUrl.includes("t=")) {
         const mMin = youtubeUrl.match(/t=(?:(\d+)m)?(?:(\d+)s)?/);
         if (mMin && (mMin[1] || mMin[2])) {
@@ -873,8 +929,11 @@
       const miniPlayer = document.getElementById('miniPlayer');
       const titleEl = document.getElementById('miniPlayerTitle');
       const slotEl = document.getElementById('playerSlot');
+      const ytLinkEl = document.getElementById('miniPlayerYtLink');
 
       titleEl.textContent = `${title} / ${liver}`;
+      if (ytLinkEl) ytLinkEl.href = youtubeUrl;
+
       const embedSrc = `https://www.youtube.com/embed/${videoId}?autoplay=1&start=${startSeconds}`;
       slotEl.innerHTML = `<iframe src="${embedSrc}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
       miniPlayer.style.display = 'block';
@@ -885,6 +944,8 @@
       const slotEl = document.getElementById('playerSlot');
       slotEl.innerHTML = '';
       miniPlayer.style.display = 'none';
+      currentPlayingIndex = -1;
+      renderTable();
     }
 
     init();

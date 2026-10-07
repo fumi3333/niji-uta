@@ -124,14 +124,23 @@ def generate_html(page_meta):
     td {{ padding: 8px 12px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); vertical-align: middle; }}
     tr:nth-child(even) {{ background: var(--row-alt); }}
     tr:hover {{ background: var(--row-hover) !important; }}
-    
+    tr.row-playing {{ background: #e8f0fe !important; border-left: 3px solid var(--link); }}
+
     .btn-play {{ display: inline-block; background: #fff; color: var(--accent); border: 1px solid var(--accent); font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 3px; cursor: pointer; text-decoration: none; }}
     .btn-play:hover {{ background: var(--accent); color: #fff; }}
+    .btn-play.playing {{ background: var(--accent); color: #fff; animation: pulse 1.5s infinite; }}
+    @keyframes pulse {{
+      0% {{ opacity: 1; }}
+      50% {{ opacity: 0.7; }}
+      100% {{ opacity: 1; }}
+    }}
 
     /* フローティングミニプレーヤー */
     .mini-player-container {{ position: fixed; bottom: 20px; right: 20px; width: 360px; background: #1e1e1e; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); z-index: 1000; overflow: hidden; display: none; border: 1px solid #333; }}
     .mini-player-header {{ display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #2d2d2d; color: #fff; font-size: 12px; }}
-    .mini-player-title {{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; font-weight: 500; }}
+    .mini-player-title {{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; font-weight: 500; color: #eee; }}
+    .mini-player-btn {{ cursor: pointer; background: #444; border: 1px solid #555; color: #fff; border-radius: 3px; padding: 2px 6px; font-size: 11px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; transition: background 0.1s; }}
+    .mini-player-btn:hover {{ background: #666; }}
     .mini-player-close {{ cursor: pointer; background: none; border: none; color: #aaa; font-size: 16px; line-height: 1; padding: 0 4px; }}
     .mini-player-close:hover {{ color: #fff; }}
     .mini-player-iframe-wrap {{ position: relative; width: 100%; padding-top: 56.25%; }}
@@ -203,8 +212,15 @@ def generate_html(page_meta):
 
   <div id="miniPlayer" class="mini-player-container">
     <div class="mini-player-header">
-      <span id="miniPlayerTitle" class="mini-player-title">再生中...</span>
-      <button type="button" class="mini-player-close" onclick="closePlayer()">✕</button>
+      <div style="display:flex; align-items:center; gap:6px; overflow:hidden;">
+        <button type="button" class="mini-player-btn" onclick="playPrevSong()" title="前の曲">⏮</button>
+        <button type="button" class="mini-player-btn" onclick="playNextSong()" title="次の曲">⏭</button>
+        <span id="miniPlayerTitle" class="mini-player-title">再生中...</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <a id="miniPlayerYtLink" href="#" target="_blank" rel="noopener" class="mini-player-btn" title="YouTubeで開く" style="text-decoration:none; font-size:11px;">↗</a>
+        <button type="button" class="mini-player-close" onclick="closePlayer()" title="閉じる">✕</button>
+      </div>
     </div>
     <div class="mini-player-iframe-wrap">
       <div id="playerSlot"></div>
@@ -226,6 +242,7 @@ def generate_html(page_meta):
   <script>
     let records = [];
     let filtered = [];
+    let currentPlayingIndex = -1;
 
     async function init() {{
       const res = await fetch('../data/song_performances.json');
@@ -263,25 +280,51 @@ def generate_html(page_meta):
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:30px; color:#888;">該当する曲が見つかりませんでした</td></tr>';
         return;
       }}
-      tbody.innerHTML = rows.map((r, i) => `
-        <tr>
-          <td style="text-align:right; color:#666; font-family:var(--font-mono);">${{i+1}}</td>
-          <td style="font-weight:600; color:#111;">${{escapeHtml(r.title)}}</td>
-          <td style="color:#444;">${{escapeHtml(r.artist)}}</td>
-          <td><span style="font-weight:500;">${{escapeHtml(r.liver)}}</span></td>
-          <td style="color:#666; font-family:var(--font-mono); font-size:12px;">${{escapeHtml(r.date || '-')}}</td>
-          <td style="color:#333; font-family:var(--font-mono); font-size:12px;">${{escapeHtml(r.timestamp || '-')}}</td>
-          <td style="text-align:center;">
-            <button type="button" class="btn-play" onclick="playSong('${{escapeHtml(r.youtube_url)}}', '${{escapeHtml(r.title)}}', '${{escapeHtml(r.liver)}}')">
-              ▶ ${{r.timestamp && r.timestamp !== '歌い出し' ? escapeHtml(r.timestamp) : '再生'}}
-            </button>
-          </td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = rows.map((r, i) => {{
+        const isCurrent = currentPlayingIndex === i;
+        const timeLabel = r.timestamp && r.timestamp !== '歌い出し' ? escapeHtml(r.timestamp) : '再生';
+        return `
+          <tr class="${{isCurrent ? 'row-playing' : ''}}" data-idx="${{i}}">
+            <td style="text-align:right; color:#666; font-family:var(--font-mono);">${{i+1}}</td>
+            <td style="font-weight:600; color:#111;">${{escapeHtml(r.title)}}</td>
+            <td style="color:#444;">${{escapeHtml(r.artist)}}</td>
+            <td><span style="font-weight:500;">${{escapeHtml(r.liver)}}</span></td>
+            <td style="color:#666; font-family:var(--font-mono); font-size:12px;">${{escapeHtml(r.date || '-')}}</td>
+            <td style="color:#333; font-family:var(--font-mono); font-size:12px;">${{escapeHtml(r.timestamp || '-')}}</td>
+            <td style="text-align:center;">
+              <button type="button" class="btn-play ${{isCurrent ? 'playing' : ''}}" onclick="playRow(${{i}})">
+                ${{isCurrent ? '● 再生中' : '▶ ' + timeLabel}}
+              </button>
+            </td>
+          </tr>
+        `;
+      }}).join('');
     }}
 
     function escapeHtml(s) {{
       return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }}
+
+    function playRow(idx) {{
+      if (idx >= 0 && idx < filtered.length) {{
+        currentPlayingIndex = idx;
+        const item = filtered[idx];
+        playSong(item.youtube_url, item.title, item.liver);
+        render();
+      }}
+    }}
+
+    function playNextSong() {{
+      if (filtered.length === 0) return;
+      const nextIdx = (currentPlayingIndex + 1) % Math.min(filtered.length, 150);
+      playRow(nextIdx);
+    }}
+
+    function playPrevSong() {{
+      if (filtered.length === 0) return;
+      const maxLen = Math.min(filtered.length, 150);
+      const prevIdx = (currentPlayingIndex - 1 + maxLen) % maxLen;
+      playRow(prevIdx);
     }}
 
     function playSong(u, t, l) {{
@@ -298,13 +341,17 @@ def generate_html(page_meta):
         }}
       }}
       document.getElementById('miniPlayerTitle').textContent = `${{t}} / ${{l}}`;
-      document.getElementById('playerSlot').innerHTML = `<iframe src="https://www.youtube.com/embed/${{m[1]}}?autoplay=1&start=${{start}}" allow="autoplay" allowfullscreen></iframe>`;
+      const ytLinkEl = document.getElementById('miniPlayerYtLink');
+      if (ytLinkEl) ytLinkEl.href = u;
+      document.getElementById('playerSlot').innerHTML = `<iframe src="https://www.youtube.com/embed/${{m[1]}}?autoplay=1&start=${{start}}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
       document.getElementById('miniPlayer').style.display = 'block';
     }}
 
     function closePlayer() {{
       document.getElementById('playerSlot').innerHTML = '';
       document.getElementById('miniPlayer').style.display = 'none';
+      currentPlayingIndex = -1;
+      render();
     }}
 
     document.getElementById('searchInput').addEventListener('input', applyFilter);
