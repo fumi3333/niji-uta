@@ -440,6 +440,12 @@
         <option value="">すべてのライバー (94名)</option>
       </select>
 
+      <select id="typeSelect">
+        <option value="">歌枠・歌ってみた すべて</option>
+        <option value="cover">歌ってみた動画のみ</option>
+        <option value="stream">歌枠のみ</option>
+      </select>
+
       <select id="sortSelect">
         <option value="date_desc">収録順</option>
         <option value="title_asc">曲名順 (あ→ん)</option>
@@ -628,6 +634,9 @@
       const effectiveWords = filteredWords.length > 0 ? filteredWords : [];
 
       currentFiltered = allRecords.filter(item => {
+        const tsel = document.getElementById('typeSelect').value;
+        if (tsel === 'cover' && item.type !== 'youtube-cover') return false;
+        if (tsel === 'stream' && item.type === 'youtube-cover') return false;
         if (selectedLiver && item.liver !== selectedLiver) {
           return false;
         }
@@ -879,6 +888,7 @@
     document.getElementById('searchInput').addEventListener('input', () => applyFilterAndSort());
     document.getElementById('liverSelect').addEventListener('change', () => applyFilterAndSort());
     document.getElementById('sortSelect').addEventListener('change', () => applyFilterAndSort());
+    document.getElementById('typeSelect').addEventListener('change', () => applyFilterAndSort());
 
     // --- 連続再生・ミニプレーヤー制御 ---
     let currentPlayingIndex = -1;
