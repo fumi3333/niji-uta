@@ -27,11 +27,14 @@ jobs:
         run: |
           python scripts/auto_update_dataset.py
 
+      - name: Build static SEO pages
+        run: python scripts/build_static_pages.py
+
       - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/song_performances.json
+          git add data/song_performances.json index.html popular/index.html sitemap.xml liver song
           if git diff --staged --quiet; then
             echo "No changes in song dataset."
           else
