@@ -6,6 +6,9 @@ on:
     - cron: '0 19 * * *'
   workflow_dispatch: # GitHubの画面から手動実行も可能
 
+permissions:
+  contents: write # 収集結果を master に push するため（既定の GITHUB_TOKEN は read のみ）
+
 jobs:
   update-songs:
     runs-on: ubuntu-latest
@@ -36,6 +39,8 @@ jobs:
         run: python scripts/build_static_pages.py
 
       - name: Commit and Push Changes
+        # ブランチでの試走時は push しない
+        if: github.ref == 'refs/heads/master'
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"

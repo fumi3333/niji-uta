@@ -6,7 +6,7 @@
 - 収集結果は data/youtube_records.json に累積保存（auto_update_dataset.py がシート由来で
   song_performances.json を作り直しても失われない）。最後に type="youtube-*" 行を差し替えて統合する
 """
-import os, re, sys, json, time, urllib.request, urllib.parse, collections
+import os, re, sys, json, time, html, datetime, urllib.request, urllib.parse, collections
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "..", "data")
@@ -16,10 +16,13 @@ STORE = os.path.join(DATA, "youtube_records.json")
 API = "https://www.googleapis.com/youtube/v3/"
 MAX_COMMENT_VIDEOS = int(os.environ.get("YT_MAX_COMMENT_VIDEOS", "60"))
 PER_CHANNEL = 30
+# 配信直後はセトリコメントがまだ無いことが多いので、この日数が経つまでは seen にせず再挑戦する
+RETRY_DAYS = int(os.environ.get("YT_RETRY_DAYS", "7"))
 
-COVER_RE = re.compile(r"歌ってみた|うたってみた|cover|covered|【\s*MV\s*】|original\s*song|オリジナル曲", re.I)
+COVER_RE = re.compile(r"歌ってみた|うたってみた|\bcover(?:ed)?\b|【\s*MV\s*】|original\s*song|オリジナル曲", re.I)
 STREAM_RE = re.compile(r"歌枠|歌配信|うた枠|歌雑談|karaoke|singing|カラオケ", re.I)
-SKIP_RE = re.compile(r"^(op|ed|opening|ending|start|開始|オープニング|エンディング|雑談|休憩|挨拶|告知|終了|おわり|お疲れ)", re.I)
+SKIP_RE = re.compile(r"^(?:(?:op|ed|opening|ending|start|mc|end|intro|outro|q&a)(?![a-z])|開始|配信開始|待機|オープニング|エンディング|雑談|"
+                     r"休憩|挨拶|告知|お知らせ|終了|おわり|お疲れ|スパチャ|スーパーチャット|sc読み|メン限|乾杯|フリートーク|トーク)", re.I)
 TS_RE = re.compile(r"^\s*(?:(?:\d{1,3}[.)）]|[-・●■▶▷►◆◇☆★]+)\s*)?(\d{1,2}:)?(\d{1,3}):(\d{2})\s*[-~〜:：)）\]】\s]*\s*(.+?)\s*$")
 
 
@@ -57,6 +60,7 @@ def parse_timestamps(text):
         sec = h * 3600 + int(m.group(2)) * 60 + int(m.group(3))
         label = m.group(4).strip()
         label = label.lstrip("-・●■▶▷►◆◇☆★ 　")
+        label = re.sub(r"^(?:\d{1,3}[.)）]|#\d{1,3})\s*", "", label)  # 「0:12 01. 曲名」の通し番号
         if label and not SKIP_RE.match(label):
             out.append((sec, label))
     return out if len(out) >= 3 else []
@@ -73,9 +77,12 @@ def split_song(label):
 
 def clean_cover_title(title):
     t = re.sub(r"[【\[].*?[】\]]", " ", title)
-    t = re.sub(r"(?i)\b(cover|covered by.*|full|ver\.?)\b", " ", t)
+    t = re.sub(r"[(（]\s*(?i:covered by.*?|cover|full|short|ver\.?.*?)\s*[)）]", " ", t)
+    t = re.sub(r"(?i)\b(covered by.*|cover|full|ver\.?)\b", " ", t)
     t = re.sub(r"\s*[/／|｜].*$", "", t)  # 「曲名 / 歌ってみた」等の後ろ
-    return re.sub(r"\s+", " ", t).strip(" 　-ー")
+    t = re.sub(r"\s+", " ", t).strip(" 　-－")  # 「ー」は曲名末尾の長音なので削らない
+    m = re.search(r"[「『](.+?)[」』]", t)  # 「オリジナル曲『xxx』」等は括弧の中を曲名とする
+    return m.group(1).strip() if m else t
 
 
 def iso_secs(d):
@@ -120,6 +127,8 @@ def main():
     print(f"channels resolved: {len(cmap)}")
 
     new_records, comment_budget = [], MAX_COMMENT_VIDEOS
+    stats = collections.Counter()
+    recent_cutoff = datetime.date.today() - datetime.timedelta(days=RETRY_DAYS)
     for liver, ch in cmap.items():
         pl = call("playlistItems", part="contentDetails", playlistId="UU" + ch[2:], maxResults=PER_CHANNEL)
         ids = [i["contentDetails"]["videoId"] for i in pl.get("items", []) if i["contentDetails"]["videoId"] not in seen]
@@ -128,20 +137,34 @@ def main():
         vids = call("videos", part="snippet,contentDetails", id=",".join(ids)).get("items", [])
         for v in vids:
             vid, sn = v["id"], v["snippet"]
-            seen.add(vid)
+            # 配信予定・配信中は duration が無い/未確定なので、アーカイブ化してから拾う（seen にしない）
+            if sn.get("liveBroadcastContent", "none") != "none" or "duration" not in v.get("contentDetails", {}):
+                stats["live/upcoming"] += 1
+                continue
             title, dur = sn["title"], iso_secs(v["contentDetails"]["duration"])
             url = f"https://youtu.be/{vid}"
             day = sn["publishedAt"][:10]
+            seen.add(vid)
             if STREAM_RE.search(title) and dur >= 1800 and vid not in known_vids:
                 text = sn.get("description", "")
-                tss = parse_timestamps(text)
+                tss, src = parse_timestamps(text), "desc"
                 if not tss and comment_budget > 0:
                     comment_budget -= 1
-                    cm = call("commentThreads", part="snippet", videoId=vid, order="relevance", maxResults=20)
+                    src = "comment"
+                    cm = call("commentThreads", part="snippet", videoId=vid, order="relevance", maxResults=20, textFormat="plainText")
                     for c in cm.get("items", []):
-                        tss = parse_timestamps(c["snippet"]["topLevelComment"]["snippet"]["textDisplay"].replace("<br>", "\n"))
+                        c_sn = c["snippet"]["topLevelComment"]["snippet"]
+                        tss = parse_timestamps(html.unescape(c_sn.get("textOriginal") or c_sn.get("textDisplay", "")))
                         if tss:
                             break
+                if not tss:
+                    stats["stream: no setlist"] += 1
+                    if datetime.date.fromisoformat(day) > recent_cutoff:
+                        seen.discard(vid)  # セトリコメントが付くのを待って次回再挑戦
+                    print(f"  [stream x] {liver} {vid} {title[:60]}")
+                    continue
+                stats["stream: parsed"] += 1
+                print(f"  [stream {len(tss):>2} {src}] {liver} {vid} {title[:50]} :: " + " | ".join(l for _, l in tss[:4]))
                 for sec, label in tss:
                     t, a = split_song(label)
                     if t:
@@ -150,12 +173,15 @@ def main():
             elif COVER_RE.search(title) and 90 <= dur <= 900 and vid not in known_vids:
                 t = clean_cover_title(title)
                 if t:
+                    stats["cover"] += 1
+                    print(f"  [cover] {liver} {vid} {title[:60]} -> {t}")
                     new_records.append({"title": t, "artist": "", "liver": liver, "date": day, "timestamp": "歌い出し",
                                         "youtube_url": url, "type": "youtube-cover"})
     store["seen"] = sorted(seen)
     store["records"] += new_records
     json.dump(store, open(STORE, "w", encoding="utf-8"), ensure_ascii=False)
     print(f"new records: {len(new_records)}, total api records: {len(store['records'])}")
+    print("summary: " + ", ".join(f"{k}={n}" for k, n in sorted(stats.items())))
 
     merge(perf, store["records"])
 
