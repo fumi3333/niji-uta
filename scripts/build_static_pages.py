@@ -102,7 +102,7 @@ def main():
         by_song[r["title"]].append(r)
     n_liver, n_rows = len(by_liver), len(rows)
 
-    urls = ["/", "/setlist/", "/archive/", "/utattemita/", "/summary/", "/popular/"]
+    urls = ["/", "/popular/"]
 
     # ライバー別ページ
     for liver, rs in by_liver.items():

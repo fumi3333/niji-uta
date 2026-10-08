@@ -441,7 +441,7 @@
       </select>
 
       <select id="sortSelect">
-        <option value="date_desc">配信日が新しい順</option>
+        <option value="date_desc">収録順</option>
         <option value="title_asc">曲名順 (あ→ん)</option>
         <option value="artist_asc">アーティスト名順</option>
         <option value="liver_asc">ライバー名順</option>
@@ -476,14 +476,13 @@
             <th class="col-title" onclick="sortBy('title')">曲名 ▾</th>
             <th class="col-artist" onclick="sortBy('artist')">本家アーティスト ▾</th>
             <th class="col-liver" onclick="sortBy('liver')">歌唱ライバー ▾</th>
-            <th class="col-date" onclick="sortBy('date')">配信日 ▾</th>
             <th class="col-time">開始秒数</th>
             <th class="col-action">再生</th>
           </tr>
         </thead>
         <tbody id="tableBody">
           <tr>
-            <td colspan="7" style="text-align: center; padding: 40px; color: #888;">
+            <td colspan="6" style="text-align: center; padding: 40px; color: #888;">
               歌唱データを読み込み中...
             </td>
           </tr>
@@ -515,10 +514,6 @@
     <p>当サイトは有志ファンによる非公式検索ツールです。ANYCOLOR株式会社とは一切関係ありません。</p>
     <p>© 2026 FumiProject | 個人開発ツール</p>
     <div class="footer-links" style="margin-bottom: 8px;">
-      <a href="./setlist/">歌枠セトリ検索</a>
-      <a href="./archive/">歌枠アーカイブ</a>
-      <a href="./utattemita/">歌ってみた一覧</a>
-      <a href="./summary/">歌唱曲まとめ</a>
       <a href="./popular/">定番曲ランキング</a>
     </div>
     <div class="footer-links">
@@ -546,7 +541,7 @@
         applyFilterAndSort(false);
       } catch (err) {
         document.getElementById('tableBody').innerHTML = 
-          `<tr><td colspan="7" style="text-align:center; padding:30px; color:#c00;">データの読み込みに失敗しました (${err.message})</td></tr>`;
+          `<tr><td colspan="6" style="text-align:center; padding:30px; color:#c00;">データの読み込みに失敗しました (${err.message})</td></tr>`;
       }
     }
 
@@ -664,7 +659,7 @@
 
       // ソート
       if (sortMode === 'date_desc') {
-        currentFiltered.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        currentFiltered.sort((a, b) => (b.id || 0) - (a.id || 0));
       } else if (sortMode === 'title_asc') {
         currentFiltered.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ja'));
       } else if (sortMode === 'artist_asc') {
@@ -827,7 +822,7 @@
       countEl.textContent = `表示: ${currentFiltered.length.toLocaleString()} / ${allRecords.length.toLocaleString()} 件`;
 
       if (currentFiltered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 40px; color: #888;">該当する歌唱データが見つかりませんでした。</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: #888;">該当する歌唱データが見つかりませんでした。</td></tr>`;
         return;
       }
 
@@ -846,7 +841,6 @@
                 ${escapeHtml(item.liver)}
               </span>
             </td>
-            <td class="col-date">${escapeHtml(item.date || '-')}</td>
             <td class="col-time">${escapeHtml(item.timestamp || '-')}</td>
             <td class="col-action">
               <button type="button" class="btn-play ${isCurrent ? 'playing' : ''}" onclick="playRow(${idx})">
@@ -859,7 +853,7 @@
 
       tbody.innerHTML = html;
       if (currentFiltered.length > 200) {
-        tbody.innerHTML += `<tr><td colspan="7" style="text-align:center; padding:12px; background:#f8f9fa; color:#666; font-size:12px;">上位200件を表示中（検索でさらに絞り込めます）</td></tr>`;
+        tbody.innerHTML += `<tr><td colspan="6" style="text-align:center; padding:12px; background:#f8f9fa; color:#666; font-size:12px;">上位200件を表示中（検索でさらに絞り込めます）</td></tr>`;
       }
     }
 

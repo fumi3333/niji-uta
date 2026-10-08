@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://nijiuta.fumiproject.dev/</loc><lastmod>2026-10-08</lastmod><priority>1.0</priority></url>
-  <url><loc>https://nijiuta.fumiproject.dev/setlist/</loc><lastmod>2026-10-08</lastmod><priority>0.8</priority></url>
-  <url><loc>https://nijiuta.fumiproject.dev/archive/</loc><lastmod>2026-10-08</lastmod><priority>0.8</priority></url>
-  <url><loc>https://nijiuta.fumiproject.dev/utattemita/</loc><lastmod>2026-10-08</lastmod><priority>0.8</priority></url>
-  <url><loc>https://nijiuta.fumiproject.dev/summary/</loc><lastmod>2026-10-08</lastmod><priority>0.8</priority></url>
   <url><loc>https://nijiuta.fumiproject.dev/popular/</loc><lastmod>2026-10-08</lastmod><priority>0.8</priority></url>
   <url><loc>https://nijiuta.fumiproject.dev/liver/%E9%88%B4%E6%9C%A8%E5%8B%9D/</loc><lastmod>2026-10-08</lastmod><priority>0.6</priority></url>
   <url><loc>https://nijiuta.fumiproject.dev/liver/%E3%83%89%E3%83%BC%E3%83%A9/</loc><lastmod>2026-10-08</lastmod><priority>0.6</priority></url>

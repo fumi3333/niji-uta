@@ -11,6 +11,46 @@
       ],
       "destination": "https://nijiuta.fumiproject.dev/$1",
       "permanent": true
+    },
+    {
+      "source": "/setlist",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/setlist/",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/archive",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/archive/",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/summary",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/summary/",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/utattemita",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/utattemita/",
+      "destination": "/",
+      "permanent": true
     }
   ]
 }
