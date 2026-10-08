@@ -24,7 +24,7 @@ STREAM_RE = re.compile(r"歌枠|歌配信|うた枠|歌雑談|karaoke|singing|�
 # 歌枠っぽいタイトルでも曲以外のタイムスタンプが並ぶ企画
 STREAM_NG_RE = re.compile(r"凸待ち|パワポ|同時視聴|ウォッチパーティ|watch\s*party", re.I)
 SKIP_RE = re.compile(r"^(?:(?:op|ed|opening|ending|start|mc|end|intro|outro|q&a)(?![a-z])|開始|配信開始|待機|オープニング|エンディング|雑談|"
-                     r"休憩|挨拶|告知|お知らせ|終了|おわり|お疲れ|スパチャ|スーパーチャット|sc読み|メン限|乾杯|フリートーク|トーク|声入り|スタート|開演|開場|自己紹介|感謝|見に来|凸|\d{1,2}:\d{2}$)", re.I)
+                     r"休憩|挨拶|告知|お知らせ|終了|おわり|お疲れ|スパチャ|スーパーチャット|sc読み|メン限|乾杯|フリートーク|トーク|声入り|スタート|開演|開場|自己紹介|感謝|見に来|凸|\d{1,2}:\d{2})", re.I)
 EMOJI_RE = re.compile("[\U0001F000-\U0001FAFF\u2600-\u2669\u266C-\u27BF\uFE0F\u200D]+")  # ♪♫ は残す
 TS_RE = re.compile(r"^\s*(?:(?:\d{1,3}[.)）]|[-・●■▶▷►◆◇☆★]+)\s*)?(\d{1,2}:)?(\d{1,3}):(\d{2})\s*[-~〜:：)）\]】\s]*\s*(.+?)\s*$")
 
@@ -111,14 +111,14 @@ def clean_cover_title(title, liver=""):
     t = re.sub(r"[【\[].*?[】\]]", " ", title)
     t = re.sub(r"[(（]\s*(?i:covered by.*?|cover|full|short|ver\.?.*?)\s*[)）]", " ", t)
     t = re.sub(r"(?i)\b(covered by.*|cover|full|ver\.?)\b", " ", t)
-    m = re.search(r"[「『](.+?)[」』]", t)  # 「オリジナル曲『xxx』」『曲名』歌ってみた 等は括弧の中を曲名とする
-    if m:
-        return m.group(1).strip()
     head, *tail = re.split(r"歌ってみた|うたってみた", t, maxsplit=1)
     t = head if head.strip(" 　-") or not tail else tail[0]  # 「曲名 歌ってみた Buono!」→ 曲名
     # 「曲名 / アーティスト」等の後ろを落とす（「D/N/A / xx」のように空白付き区切りを優先）
     t = re.split(r"\s+[/|｜]\s*|\s*[／￤]\s*", t, maxsplit=1)[0] if re.search(r"\s+[/|｜]|[／￤]", t) else t.split("/", 1)[0]
     t = re.sub(r"\s+", " ", t).strip(" 　-－")  # 「ー」は曲名末尾の長音なので削らない
+    m = re.search(r"[「『](.+?)[」』]", t)  # 「オリジナル曲『xxx』」『曲名』歌ってみた 等は括弧の中を曲名とする
+    if m:
+        return m.group(1).strip()
     parts = [x.strip() for x in re.split(r"\s+[-–—－]\s+", t, maxsplit=1)]
     if len(parts) == 2:  # 「曲名 - アーティスト」か「アーティスト - 曲名」かを既知データで判定
         a, b = parts
