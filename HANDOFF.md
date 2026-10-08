@@ -171,15 +171,19 @@
 ## 7. 自動更新パイプライン（GitHub Actions）
 
 - **ワークフロー定義**: `.github/workflows/auto_update_songs.yml`
+- **YouTube Data API v3 連携状態**:
+  - **APIキー発行・制限設定済み**: Google Cloudプロジェクト `gsc-reader-510905` にて YouTube Data API v3 専用の制限付きキーを発行完了。
+  - **GitHub Secrets登録済み**: リポジトリの Actions Secrets に `YOUTUBE_API_KEY` として登録完了済み（ワークフロー内から `${{ secrets.YOUTUBE_API_KEY }}` で参照可能）。
 - **実行契機**:
   - 毎日 日本時間 午前4:00（UTC 19:00）に定期自動実行。
   - 手動実行（GitHub Web画面の「Run workflow」ボタン）にも対応。
 - **動作**:
   1. Python 3.11 環境をセットアップ
-  2. `pip install pykakasi`
-  3. `python scripts/auto_update_dataset.py` を実行して最新データ収集・名寄せ
+  2. `pip install pykakasi google-api-python-client`
+  3. `python scripts/auto_update_dataset.py` を実行して最新データ収集・YouTube新着動画（歌枠・歌ってみた）の自動パース・名寄せ
   4. 差分があれば `git commit -m "chore(data): auto-update song database [skip ci]"` して `origin master` へ自動 push
   5. Vercelがmasterへのpushを検知して本番へ自動デプロイ
+
 
 ---
 
