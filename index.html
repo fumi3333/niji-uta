@@ -207,6 +207,151 @@
       color: var(--link);
     }
 
+    .add-song-header-btn {
+      background: #0056b3;
+      color: #fff;
+      border: 1px solid #004494;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s;
+    }
+    .add-song-header-btn:hover {
+      background: #004085;
+    }
+
+    /* モーダル */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-card {
+      background: #fff;
+      border: 1px solid var(--border-dark);
+      border-radius: 6px;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #212529;
+    }
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: var(--text-muted);
+      line-height: 1;
+    }
+    .modal-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #333;
+    }
+    .form-label .req {
+      color: #d93025;
+      font-size: 11px;
+      margin-left: 4px;
+    }
+    .form-input {
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 13px;
+      border: 1px solid var(--border-dark);
+      border-radius: 4px;
+      box-sizing: border-box;
+      background: #fff;
+    }
+    .form-input:focus {
+      border-color: var(--link);
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(0,86,179,0.15);
+    }
+    .form-help {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+    .btn-secondary {
+      background: #f8f9fa;
+      border: 1px solid var(--border-dark);
+      padding: 7px 14px;
+      font-size: 13px;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #333;
+    }
+    .btn-primary {
+      background: #0056b3;
+      border: 1px solid #004494;
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: #004085;
+    }
+    .user-badge {
+      display: inline-block;
+      background: #e6f4ea;
+      color: #137333;
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 600;
+      margin-right: 4px;
+      border: 1px solid #ceead6;
+    }
+
     /* データテーブル（Excelライク） */
     main {
       max-width: 1240px;
@@ -423,11 +568,68 @@
         <h1>にじ歌サーチ - 歌枠・歌ってみた セトリ検索 <span class="badge">非公式</span></h1>
         <span class="subtext">にじさんじ歌枠・歌唱タイムスタンプ横断データベース</span>
       </div>
-      <div class="meta-info" id="metaInfo">
-        収録データ: 13,090件
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <button type="button" class="add-song-header-btn" onclick="openAddSongModal()">＋ 推しの歌を追加</button>
+        <div class="meta-info" id="metaInfo">
+          収録データ: 13,090件
+        </div>
       </div>
     </div>
   </header>
+
+  <!-- 推しの歌・タイムスタンプ追加モーダル -->
+  <div id="addSongModal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">推しの歌・タイムスタンプを追加</div>
+        <button type="button" class="modal-close-btn" onclick="closeAddSongModal()" aria-label="閉じる">&times;</button>
+      </div>
+      <div class="modal-desc">
+        YouTubeのURLを貼るだけで秒数（タイムスタンプ）が自動反映されます。<br>
+        追加した曲はブラウザに即時保存され、検索や再生ができるようになります。
+      </div>
+      <form id="addSongForm" onsubmit="submitUserSong(event)">
+        <div class="form-group">
+          <label class="form-label">YouTube URL <span class="req">*必須</span></label>
+          <input type="url" id="modalYtUrl" class="form-input" placeholder="https://youtu.be/xxxx?t=123 や配信URL" required oninput="handleUrlInput(this.value)">
+          <div class="form-help">秒数付きURL（例: ?t=120 や ?t=2m00s）を貼ると、下のタイムスタンプが自動入力されます。</div>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">開始時間 / 秒数 <span class="req">*必須</span></label>
+            <input type="text" id="modalTimestamp" class="form-input" placeholder="例: 1:23 または 83" required>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">歌唱ライバー <span class="req">*必須</span></label>
+            <input type="text" id="modalLiver" class="form-input" list="liverDataList" placeholder="例: 甲斐田晴" required>
+            <datalist id="liverDataList"></datalist>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">曲名 <span class="req">*必須</span></label>
+            <input type="text" id="modalTitle" class="form-input" placeholder="例: フォニイ" required>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">本家アーティスト</label>
+            <input type="text" id="modalArtist" class="form-input" placeholder="例: ツミキ (任意)">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">推しポイント / ひとことメモ</label>
+          <input type="text" id="modalComment" class="form-input" placeholder="例: ラスサビのアレンジが神、低音ボイスが最高など (任意)">
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" onclick="closeAddSongModal()">キャンセル</button>
+          <button type="submit" class="btn-primary">追加して再生可能にする</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <div class="controls-wrapper">
     <div class="controls">
@@ -536,6 +738,16 @@
       try {
         const res = await fetch('./data/song_performances.json');
         allRecords = await res.json();
+
+        // localStorage からユーザー投稿データをロードして先頭に合流
+        try {
+          const userSongs = JSON.parse(localStorage.getItem('user_contributed_songs') || '[]');
+          if (Array.isArray(userSongs) && userSongs.length > 0) {
+            allRecords = [...userSongs, ...allRecords];
+          }
+        } catch (e) {
+          console.warn('Failed to load user songs', e);
+        }
         
         const metaEl = document.getElementById('metaInfo');
         if (metaEl) {
@@ -549,6 +761,186 @@
         document.getElementById('tableBody').innerHTML = 
           `<tr><td colspan="6" style="text-align:center; padding:30px; color:#c00;">データの読み込みに失敗しました (${err.message})</td></tr>`;
       }
+    }
+
+    // --- ユーザー推し曲・タイムスタンプ追加機能 ---
+    function openAddSongModal() {
+      const modal = document.getElementById('addSongModal');
+      modal.style.display = 'flex';
+
+      // ライバー候補リストのdatalistを初期化（未作成時）
+      const dl = document.getElementById('liverDataList');
+      if (dl && dl.children.length === 0) {
+        const liverSet = new Set();
+        allRecords.forEach(r => { if (r.liver) liverSet.add(r.liver); });
+        Array.from(liverSet).sort((a, b) => a.localeCompare(b, 'ja')).forEach(l => {
+          const opt = document.createElement('option');
+          opt.value = l;
+          dl.appendChild(opt);
+        });
+      }
+
+      setTimeout(() => {
+        const input = document.getElementById('modalYtUrl');
+        if (input) input.focus();
+      }, 50);
+    }
+
+    function closeAddSongModal() {
+      const modal = document.getElementById('addSongModal');
+      modal.style.display = 'none';
+      document.getElementById('addSongForm').reset();
+    }
+
+    // モーダル背景クリックで閉じる
+    window.addEventListener('DOMContentLoaded', () => {
+      const modal = document.getElementById('addSongModal');
+      if (modal) {
+        modal.addEventListener('click', (e) => {
+          if (e.target.id === 'addSongModal') {
+            closeAddSongModal();
+          }
+        });
+      }
+    });
+
+    // YouTube URLから秒数を抽出して自動入力
+    function handleUrlInput(url) {
+      if (!url) return;
+      const tInput = document.getElementById('modalTimestamp');
+
+      // パターン1: t=1h2m3s または t=2m15s または t=45s
+      const mMin = url.match(/[?&]t=(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/);
+      if (mMin && (mMin[1] || mMin[2] || mMin[3])) {
+        const h = mMin[1] ? parseInt(mMin[1]) : 0;
+        const m = mMin[2] ? parseInt(mMin[2]) : 0;
+        const s = mMin[3] ? parseInt(mMin[3]) : 0;
+        const totalSecs = h * 3600 + m * 60 + s;
+        tInput.value = formatSecondsToTime(totalSecs);
+        return;
+      }
+
+      // パターン2: t=123（純粋な秒数）
+      const mSec = url.match(/[?&]t=(\d+)/);
+      if (mSec && mSec[1]) {
+        const totalSecs = parseInt(mSec[1]);
+        tInput.value = formatSecondsToTime(totalSecs);
+      }
+    }
+
+    // 秒数を "01:23" または "1:02:03" 形式にフォーマット
+    function formatSecondsToTime(totalSeconds) {
+      if (isNaN(totalSeconds) || totalSeconds < 0) return '00:00';
+      const h = Math.floor(totalSeconds / 3600);
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      const s = totalSeconds % 60;
+      if (h > 0) {
+        return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      }
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    // "1:23:45" や "12:34" や "83" を 秒数(integer)に変換
+    function parseTimeToSeconds(timeStr) {
+      if (!timeStr) return 0;
+      const clean = String(timeStr).trim();
+      if (/^\d+$/.test(clean)) {
+        return parseInt(clean, 10);
+      }
+      const parts = clean.split(':').map(p => parseInt(p, 10));
+      if (parts.some(isNaN)) return 0;
+      if (parts.length === 3) {
+        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      } else if (parts.length === 2) {
+        return parts[0] * 60 + parts[1];
+      }
+      return 0;
+    }
+
+    // YouTube URLから VideoId を抽出
+    function extractVideoId(url) {
+      if (!url) return null;
+      const m = url.match(/(?:youtu\.be\/|v=|\/embed\/|\/watch\?v=|\/live\/)([a-zA-Z0-9_-]{11})/);
+      return m ? m[1] : null;
+    }
+
+    // ユーザー推し曲の送信・保存
+    function submitUserSong(e) {
+      e.preventDefault();
+
+      const ytUrlRaw = document.getElementById('modalYtUrl').value.trim();
+      const timeRaw = document.getElementById('modalTimestamp').value.trim();
+      const liver = document.getElementById('modalLiver').value.trim();
+      const title = document.getElementById('modalTitle').value.trim();
+      const artist = document.getElementById('modalArtist').value.trim() || '未設定';
+      const comment = document.getElementById('modalComment').value.trim();
+
+      const videoId = extractVideoId(ytUrlRaw);
+      if (!videoId) {
+        alert('有効なYouTubeの動画URLを入力してください（YouTube配信または動画リンク）');
+        return;
+      }
+
+      const seconds = parseTimeToSeconds(timeRaw);
+      const formattedTime = formatSecondsToTime(seconds);
+      const finalYtUrl = `https://www.youtube.com/watch?v=${videoId}&t=${seconds}s`;
+
+      const newSong = {
+        id: `user_${Date.now()}`,
+        title: title,
+        artist: artist,
+        liver: liver,
+        date: new Date().toISOString().split('T')[0],
+        timestamp: formattedTime,
+        seconds: seconds,
+        youtube_url: finalYtUrl,
+        is_user_contributed: true,
+        comment: comment,
+        created_at: new Date().toISOString()
+      };
+
+      // localStorage に永続化
+      try {
+        const saved = JSON.parse(localStorage.getItem('user_contributed_songs') || '[]');
+        saved.unshift(newSong);
+        localStorage.setItem('user_contributed_songs', JSON.stringify(saved));
+      } catch (err) {
+        console.warn('localStorage save failed:', err);
+      }
+
+      // メモリ上の配列に追加
+      allRecords.unshift(newSong);
+
+      // モーダル閉じる
+      closeAddSongModal();
+
+      // 検索窓を投稿した曲名にして即座に見えるようにする
+      document.getElementById('searchInput').value = title;
+      applyFilterAndSort();
+
+      // 件数表示の更新
+      const metaEl = document.getElementById('metaInfo');
+      if (metaEl) {
+        metaEl.textContent = `収録データ: ${allRecords.length.toLocaleString()}件`;
+      }
+
+      // 1曲目を即時再生
+      playRow(0);
+    }
+
+    // ユーザー追加曲の削除
+    function deleteUserSong(id, e) {
+      if (e) e.stopPropagation();
+      if (!confirm('この推し曲データを一覧から削除しますか？')) return;
+
+      try {
+        let saved = JSON.parse(localStorage.getItem('user_contributed_songs') || '[]');
+        saved = saved.filter(s => s.id !== id);
+        localStorage.setItem('user_contributed_songs', JSON.stringify(saved));
+      } catch (err) {}
+
+      allRecords = allRecords.filter(s => s.id !== id);
+      applyFilterAndSort();
     }
 
     function populateLiverSelect() {
@@ -840,10 +1232,17 @@
       const html = displayRows.map((item, idx) => {
         const timeLabel = item.timestamp && item.timestamp !== "歌い出し" ? item.timestamp : "再生";
         const isCurrent = currentPlayingIndex === idx;
+        const userBadge = item.is_user_contributed ? `
+          <span class="user-badge" title="${escapeHtml(item.comment ? 'ファン推薦: ' + item.comment : 'ファン推薦曲')}">★ ファン推薦</span>
+        ` : '';
+        const deleteBtn = item.is_user_contributed ? `
+          <button type="button" onclick="deleteUserSong('${escapeHtml(item.id)}', event)" style="background:none; border:none; color:#dc3545; cursor:pointer; font-size:11px; margin-left:6px; padding:0 2px;" title="この登録を削除">✕</button>
+        ` : '';
+
         return `
           <tr class="${isCurrent ? 'row-playing' : ''}" data-idx="${idx}">
             <td class="col-id">${idx + 1}</td>
-            <td class="col-title">${escapeHtml(item.title)}</td>
+            <td class="col-title">${userBadge}${escapeHtml(item.title)}${deleteBtn}</td>
             <td class="col-artist">${escapeHtml(item.artist)}</td>
             <td class="col-liver">
               <span class="liver-text" style="cursor: pointer; text-decoration: underline; text-decoration-color: #ced4da;" onclick="setQuickSearch('${escapeHtml(item.liver)}')" title="このライバーで絞り込む">
@@ -887,8 +1286,8 @@
 
     document.getElementById('searchInput').addEventListener('input', () => applyFilterAndSort());
     document.getElementById('liverSelect').addEventListener('change', () => applyFilterAndSort());
-    document.getElementById('sortSelect').addEventListener('change', () => applyFilterAndSort());
     document.getElementById('typeSelect').addEventListener('change', () => applyFilterAndSort());
+    document.getElementById('sortSelect').addEventListener('change', () => applyFilterAndSort());
 
     // --- 連続再生・ミニプレーヤー制御 ---
     let currentPlayingIndex = -1;
@@ -920,7 +1319,7 @@
       let videoId = "";
       let startSeconds = 0;
 
-      const mId = youtubeUrl.match(/(?:youtu\.be\/|v=|\/embed\/|\/watch\?v=)([a-zA-Z0-9_-]{11})/);
+      const mId = youtubeUrl.match(/(?:youtu\.be\/|v=|\/embed\/|\/watch\?v=|\/live\/)([a-zA-Z0-9_-]{11})/);
       if (mId) videoId = mId[1];
 
       if (youtubeUrl.includes("t=")) {
