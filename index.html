@@ -437,6 +437,18 @@
       color: #24292f;
     }
 
+    .kind-badge {
+      display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 6px;
+      border-radius: 3px; margin-right: 4px;
+    }
+    .kind-stream { background: #e7f0fb; color: #1a5fb4; }
+    .kind-cover { background: #fbeaf0; color: #b3245a; }
+    .kind-video { background: #eef0f2; color: #555; }
+    .fav-btn {
+      background: none; border: none; cursor: pointer; font-size: 15px;
+      color: #c0c4c8; padding: 0 4px 0 0; line-height: 1; vertical-align: middle;
+    }
+    .fav-btn.on { color: #f5a623; }
     .btn-play {
       display: inline-block;
       background: #fff;
@@ -565,6 +577,7 @@
       .search-box { width: 100%; }
       table { font-size: 12px; }
       th, td { padding: 6px 8px; }
+      .col-id { display: none; }
     }
   </style>
 </head>
@@ -653,11 +666,12 @@
       <select id="typeSelect">
         <option value="">歌枠・歌ってみた すべて</option>
         <option value="cover">歌ってみた動画のみ</option>
-        <option value="stream">歌枠のみ</option>
+        <option value="stream">歌枠（配信）のみ</option>
+        <option value="fav">★ お気に入りのみ</option>
       </select>
 
       <select id="sortSelect">
-        <option value="date_desc">収録順</option>
+        <option value="date_desc">新着順</option>
         <option value="title_asc">曲名順 (あ→ん)</option>
         <option value="artist_asc">アーティスト名順</option>
         <option value="liver_asc">ライバー名順</option>
@@ -690,15 +704,16 @@
           <tr>
             <th class="col-id">No.</th>
             <th class="col-title" onclick="sortBy('title')">曲名 ▾</th>
-            <th class="col-artist" onclick="sortBy('artist')">本家アーティスト ▾</th>
-            <th class="col-liver" onclick="sortBy('liver')">歌唱ライバー ▾</th>
-            <th class="col-time">開始秒数</th>
+            <th class="col-artist" onclick="sortBy('artist')">原曲アーティスト ▾</th>
+            <th class="col-liver" onclick="sortBy('liver')">歌ったライバー ▾</th>
+            <th class="col-date">種類・公開日</th>
+            <th class="col-time">歌い出し</th>
             <th class="col-action">再生</th>
           </tr>
         </thead>
         <tbody id="tableBody">
           <tr>
-            <td colspan="6" style="text-align: center; padding: 40px; color: #888;">
+            <td colspan="7" style="text-align: center; padding: 40px; color: #888;">
               歌唱データを読み込み中...
             </td>
           </tr>
@@ -744,6 +759,29 @@
     let allRecords = [];
     let currentFiltered = [];
 
+    // --- お気に入り (localStorage) ---
+    // データ更新で id が振り直されても保持できるよう、URL+曲名+ライバーをキーにする
+    const FAV_KEY = 'favorite_songs';
+    let favorites = new Set();
+    try { favorites = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')); } catch (e) {}
+
+    function favKey(item) {
+      return `${item.youtube_url}|${item.title}|${item.liver}`;
+    }
+
+    function toggleFavorite(idx, e) {
+      if (e) e.stopPropagation();
+      const item = currentFiltered[idx];
+      if (!item) return;
+      const key = favKey(item);
+      if (favorites.has(key)) favorites.delete(key); else favorites.add(key);
+      try { localStorage.setItem(FAV_KEY, JSON.stringify([...favorites])); } catch (err) {
+        console.warn('localStorage save failed:', err);
+      }
+      if (document.getElementById('typeSelect').value === 'fav') applyFilterAndSort(false);
+      else renderTable();
+    }
+
     async function init() {
       try {
         const res = await fetch('./data/song_performances.json');
@@ -769,7 +807,7 @@
         applyFilterAndSort(false);
       } catch (err) {
         document.getElementById('tableBody').innerHTML = 
-          `<tr><td colspan="6" style="text-align:center; padding:30px; color:#c00;">データの読み込みに失敗しました (${err.message})</td></tr>`;
+          `<tr><td colspan="7" style="text-align:center; padding:30px; color:#c00;">データの読み込みに失敗しました (${err.message})</td></tr>`;
       }
     }
 
@@ -1039,6 +1077,7 @@
         const tsel = document.getElementById('typeSelect').value;
         if (tsel === 'cover' && item.type !== 'youtube-cover') return false;
         if (tsel === 'stream' && item.type === 'youtube-cover') return false;
+        if (tsel === 'fav' && !favorites.has(favKey(item))) return false;
         if (selectedLiver && item.liver !== selectedLiver) {
           return false;
         }
@@ -1233,15 +1272,22 @@
       countEl.textContent = `表示: ${currentFiltered.length.toLocaleString()} / ${allRecords.length.toLocaleString()} 件`;
 
       if (currentFiltered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: #888;">該当する歌唱データが見つかりませんでした。</td></tr>`;
+        const emptyMsg = document.getElementById('typeSelect').value === 'fav'
+          ? 'お気に入りはまだありません。曲名の左の ☆ を押すと追加できます。'
+          : '該当する歌唱データが見つかりませんでした。';
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 40px; color: #888;">${emptyMsg}</td></tr>`;
         return;
       }
 
       const displayRows = currentFiltered.slice(0, 200);
 
       const html = displayRows.map((item, idx) => {
-        const timeLabel = item.timestamp && item.timestamp !== "歌い出し" ? item.timestamp : "再生";
+        const [kindText, kindClass] = kindLabel(item);
+        const startLabel = timeLabel(item);
+        const playLabel = startLabel === '最初から' ? '再生' : startLabel.replace(' から', '');
         const isCurrent = currentPlayingIndex === idx;
+        const isFav = favorites.has(favKey(item));
+        const favBtn = `<button type="button" class="fav-btn ${isFav ? 'on' : ''}" onclick="toggleFavorite(${idx}, event)" title="${isFav ? 'お気に入りから外す' : 'お気に入りに追加'}" aria-pressed="${isFav}">${isFav ? '★' : '☆'}</button>`;
         const userBadge = item.is_user_contributed ? `
           <span class="user-badge" title="${escapeHtml(item.comment ? 'ファン推薦: ' + item.comment : 'ファン推薦曲')}">★ ファン推薦</span>
         ` : '';
@@ -1252,17 +1298,18 @@
         return `
           <tr class="${isCurrent ? 'row-playing' : ''}" data-idx="${idx}">
             <td class="col-id">${idx + 1}</td>
-            <td class="col-title">${userBadge}${escapeHtml(item.title)}${deleteBtn}</td>
+            <td class="col-title">${favBtn}${userBadge}${escapeHtml(item.title)}${deleteBtn}</td>
             <td class="col-artist">${escapeHtml(item.artist)}</td>
             <td class="col-liver">
               <span class="liver-text" style="cursor: pointer; text-decoration: underline; text-decoration-color: #ced4da;" onclick="setQuickSearch('${escapeHtml(item.liver)}')" title="このライバーで絞り込む">
                 ${escapeHtml(item.liver)}
               </span>
             </td>
-            <td class="col-time">${escapeHtml(item.timestamp || '-')}</td>
+            <td class="col-date"><span class="kind-badge ${kindClass}">${kindText}</span>${escapeHtml(dateLabel(item))}</td>
+            <td class="col-time">${escapeHtml(startLabel)}</td>
             <td class="col-action">
               <button type="button" class="btn-play ${isCurrent ? 'playing' : ''}" onclick="playRow(${idx})">
-                ${isCurrent ? '● 再生中' : '▶ ' + escapeHtml(timeLabel)}
+                ${isCurrent ? '● 再生中' : '▶ ' + escapeHtml(playLabel)}
               </button>
             </td>
           </tr>
@@ -1271,8 +1318,29 @@
 
       tbody.innerHTML = html;
       if (currentFiltered.length > 200) {
-        tbody.innerHTML += `<tr><td colspan="6" style="text-align:center; padding:12px; background:#f8f9fa; color:#666; font-size:12px;">上位200件を表示中（検索でさらに絞り込めます）</td></tr>`;
+        tbody.innerHTML += `<tr><td colspan="7" style="text-align:center; padding:12px; background:#f8f9fa; color:#666; font-size:12px;">上位200件を表示中（検索でさらに絞り込めます）</td></tr>`;
       }
+    }
+
+    // データ内部の値を、見る人に伝わる表示ラベルに変換する
+    function kindLabel(item) {
+      if (item.type === 'youtube-cover') return ['歌ってみた', 'kind-cover'];
+      if (item.type === 'youtube-stream' || /[?&]t=\d/.test(item.youtube_url || '') || item.date === '配信アーカイブ') return ['歌枠', 'kind-stream'];
+      return ['動画', 'kind-video'];
+    }
+
+    function dateLabel(item) {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(item.date || '');
+      return m ? `${m[1]}/${m[2]}/${m[3]}` : '';
+    }
+
+    function timeLabel(item) {
+      const t = item.timestamp;
+      if (!t || t === '歌い出し' || t === '-') return '最初から';
+      const sec = parseTimeToSeconds(t);
+      if (!sec && sec !== 0) return t;
+      const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), ss = String(sec % 60).padStart(2, '0');
+      return (h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`) + ' から';
     }
 
     function escapeHtml(str) {

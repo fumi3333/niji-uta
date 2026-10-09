@@ -56,8 +56,17 @@ def page(title, desc, canon, h1, body, ld=None):
 </body></html>"""
 
 
+def kind(r):
+    """内部の type / URL から、見る人向けの種類ラベルを返す（index.html の kindLabel と同じ判定）"""
+    if r.get("type") == "youtube-cover":
+        return "歌ってみた"
+    if r.get("type") == "youtube-stream" or re.search(r"[?&]t=\d", r.get("youtube_url") or "") or r.get("date") == "配信アーカイブ":
+        return "歌枠"
+    return "動画"
+
+
 def table(rows, show_liver=True, show_title=True):
-    h = "<table><thead><tr>" + ("<th>曲名</th>" if show_title else "") + "<th>本家</th>" + ("<th>歌唱ライバー</th>" if show_liver else "") + "<th>頭出し</th></tr></thead><tbody>"
+    h = "<table><thead><tr>" + ("<th>曲名</th>" if show_title else "") + "<th>原曲アーティスト</th>" + ("<th>歌ったライバー</th>" if show_liver else "") + "<th>種類</th><th>再生</th></tr></thead><tbody>"
     for r in rows:
         ts = r.get("timestamp") or ""
         label = "▶ " + (ts if ts and ts != "歌い出し" else "再生")
@@ -67,6 +76,7 @@ def table(rows, show_liver=True, show_title=True):
         h += f'<td>{e(r.get("artist") or "")}</td>'
         if show_liver:
             h += f'<td><a href="/liver/{quote(slug(r["liver"]))}/">{e(r["liver"])}</a></td>'
+        h += f'<td>{kind(r)}</td>'
         h += f'<td><a href="{e(yt(r))}" rel="noopener nofollow" target="_blank">{e(label)}</a></td></tr>'
     return h + "</tbody></table>"
 
@@ -123,7 +133,7 @@ def main():
         art = next((r["artist"] for r in rs if r.get("artist")), "")
         title = f"{t}を歌ったにじさんじライバー一覧（{len(livers)}人）｜歌枠セトリ"
         desc = f"「{t}」{('（' + art + '）') if art else ''}を歌枠で歌ったにじさんじライバー {len(livers)}人・{len(rs)}回分。{'、'.join(livers[:5])} など。秒数頭出しで再生。"
-        body = f'<p class="m">歌唱ライバー: {e("、".join(livers))}</p>' + table(rs, show_title=False)
+        body = f'<p class="m">歌ったライバー: {e("、".join(livers))}</p>' + table(rs, show_title=False)
         write(f"song/{slug(t)}/index.html", page(title, desc, f"{BASE}/song/{quote(slug(t))}/", f"「{t}」を歌ったにじさんじライバー", body))
         urls.append(f"/song/{quote(slug(t))}/")
         n_song += 1
@@ -132,7 +142,7 @@ def main():
     covers = sorted((r for r in rows if r.get("type") == "youtube-cover"), key=lambda r: r.get("date", ""), reverse=True)
     cc = collections.Counter(r["liver"] for r in covers)
     chips = " ".join(f'<a href="/liver/{quote(slug(l))}/">{e(l)}({n})</a>' for l, n in cc.most_common())
-    ctable = "<table><thead><tr><th>公開日</th><th>曲名</th><th>歌唱ライバー</th><th>動画</th></tr></thead><tbody>" + "".join(
+    ctable = "<table><thead><tr><th>公開日</th><th>曲名</th><th>歌ったライバー</th><th>動画</th></tr></thead><tbody>" + "".join(
         f'<tr><td>{e(r.get("date",""))}</td><td><a href="/song/{quote(slug(r["title"]))}/">{e(r["title"])}</a></td>'
         f'<td><a href="/liver/{quote(slug(r["liver"]))}/">{e(r["liver"])}</a></td>'
         f'<td><a href="{e(yt(r))}" rel="noopener nofollow" target="_blank">▶ YouTube</a></td></tr>' for r in covers) + "</tbody></table>"

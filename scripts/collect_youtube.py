@@ -14,9 +14,10 @@ PERF = os.path.join(DATA, "song_performances.json")
 CHMAP = os.path.join(DATA, "channel_map.json")
 STORE = os.path.join(DATA, "youtube_records.json")
 API = "https://www.googleapis.com/youtube/v3/"
-MAX_COMMENT_VIDEOS = int(os.environ.get("YT_MAX_COMMENT_VIDEOS", "200"))
+# クォータ(1日10,000)の目安: チャンネル解決 search 100×未解決数(初回のみ) + 一覧/詳細 約42×94 + コメント 1×この値
+MAX_COMMENT_VIDEOS = int(os.environ.get("YT_MAX_COMMENT_VIDEOS", "1000"))
 PER_CHANNEL = 30
-BACKFILL_PAGES = int(os.environ.get("YT_BACKFILL_PAGES", "3"))  # 1ページ=50本。1日あたり1チャンネル最大150本ずつ過去へ遡る
+BACKFILL_PAGES = int(os.environ.get("YT_BACKFILL_PAGES", "20"))  # 1ページ=50本。1日あたり1チャンネル最大1000本ずつ過去へ遡る
 # 配信直後はセトリコメントがまだ無いことが多いので、この日数が経つまでは seen にせず再挑戦する
 RETRY_DAYS = int(os.environ.get("YT_RETRY_DAYS", "7"))
 
@@ -26,6 +27,8 @@ STREAM_RE = re.compile(r"歌枠|歌配信|うた枠|歌雑談|karaoke|singing|�
 STREAM_NG_RE = re.compile(r"凸待ち|パワポ|同時視聴|ウォッチパーティ|watch\s*party", re.I)
 SKIP_RE = re.compile(r"^(?:(?:op|ed|opening|ending|start|mc|end|intro|outro|q&a)(?![a-z])|開始|配信開始|待機|オープニング|エンディング|雑談|"
                      r"休憩|挨拶|告知|お知らせ|終了|おわり|お疲れ|スパチャ|スーパーチャット|sc読み|メン限|乾杯|フリートーク|トーク|声入り|スタート|開演|開場|自己紹介|感謝|見に来|凸|\d{1,2}:\d{2})", re.I)
+# 曲名ではなくトーク・企画の区間を示す語（行のどこかに含まれていたら捨てる）
+TALK_RE = re.compile(r"MC|エピソード|お話|話し|感想|告知|雑談|休憩|トーク|ありがとう|おつかれ|お疲れ|スパチャ|コメント|振り返り|……|\.\.\.", re.I)
 EMOJI_RE = re.compile("[\U0001F000-\U0001FAFF\u2600-\u2669\u266C-\u27BF\uFE0F\u200D]+")  # ♪♫ は残す
 TS_RE = re.compile(r"^\s*(?:(?:\d{1,3}[.)）]|[-・●■▶▷►◆◇☆★]+)\s*)?(\d{1,2}:)?(\d{1,3}):(\d{2})\s*[-~〜:：)）\]】\s]*\s*(.+?)\s*$")
 
@@ -65,16 +68,26 @@ def parse_timestamps(text):
         label = m.group(4).strip()
         label = label.lstrip("-・●■▶▷►◆◇☆★▼▽ 　")
         label = re.sub(r"^(?:\d{1,3}[.)）]|#\d{1,3}|[①-⑳])\s*", "", label)  # 「0:12 01. 曲名」「②曲名」の通し番号
-        label = EMOJI_RE.sub("", label).strip(" 　/／")
+        label = EMOJI_RE.sub("", label).strip(" 　/／♪♫")
         if out and out[-1][0] == sec:
             continue  # 「曲名」「Romanized」が同じ秒で並ぶ二言語セトリは先頭だけ
-        if label and not SKIP_RE.match(label):
+        if label and not SKIP_RE.match(label) and not is_talk(label):
             out.append((sec, label))
     # 「曲名/アーティスト」や「♪曲名」の行が過半なら、そうでない行（実況・トーク等）は捨てる
     songish = [(sec, l.lstrip("♪♫ ")) for sec, l in out if re.search(r"[/／]|^[♪♫]", l)]
     if len(songish) >= 3 and len(songish) * 2 >= len(out):
         out = songish
     return out if len(out) >= 3 else []
+
+
+def is_talk(label):
+    """「曲名 / アーティスト」形式でない行のうち、明らかに会話・企画の行"""
+    if re.search(r"[/／]", label) or label.lower() in KNOWN_TITLES:
+        return False
+    if TALK_RE.search(label):
+        return True
+    # 長い日本語の感嘆・疑問文はトークとみなす（英語の曲名「Will You Marry Me?」等は残す）
+    return len(label) > 14 and re.search(r"[！？。]$", label) is not None and not re.search(r"[A-Za-z]{3}", label)
 
 
 def setlist_score(tss):
@@ -88,7 +101,7 @@ def split_song(label):
     if len(parts) == 1:
         parts = label.split("/", 1)  # 「烈火/niki」のような詰めた表記
     t = parts[0].strip(" 　「」『』")
-    a = parts[1].strip(" 　") if len(parts) > 1 else ""
+    a = parts[1].strip(" 　♪♫") if len(parts) > 1 else ""
     return t, a
 
 
@@ -115,8 +128,10 @@ def clean_cover_title(title, liver=""):
     head, *tail = re.split(r"歌ってみた|うたってみた", t, maxsplit=1)
     t = head if head.strip(" 　-") or not tail else tail[0]  # 「曲名 歌ってみた Buono!」→ 曲名
     # 「曲名 / アーティスト」等の後ろを落とす（「D/N/A / xx」のように空白付き区切りを優先）
-    t = re.split(r"\s+[/|｜]\s*|\s*[／￤]\s*", t, maxsplit=1)[0] if re.search(r"\s+[/|｜]|[／￤]", t) else t.split("/", 1)[0]
-    t = re.sub(r"\s+", " ", t).strip(" 　-－")  # 「ー」は曲名末尾の長音なので削らない
+    head = re.split(r"\s+[/|｜]\s*|\s*[／￤]\s*", t, maxsplit=1)[0] if re.search(r"\s+[/|｜]|[／￤]", t) else t.split("/", 1)[0]
+    t = head if not re.fullmatch(r"\s*\d+\s*", head) else t.rsplit("/", 1)[0]  # 「1/6の夢旅人」のような曲名中の / は切らない
+    t = re.sub(r"\s+", " ", t).strip(" 　-－")
+    t = re.sub(r"\s*[)）]+$", "", t) if t.count("(") + t.count("（") < t.count(")") + t.count("）") else t  # 「ー」は曲名末尾の長音なので削らない
     m = re.search(r"[「『](.+?)[」』]", t)  # 「オリジナル曲『xxx』」『曲名』歌ってみた 等は括弧の中を曲名とする
     if m:
         return m.group(1).strip()
@@ -141,6 +156,19 @@ def iso_secs(d):
     return h * 3600 + mi * 60 + s
 
 
+def _norm(s):
+    return re.sub(r"[\s・.　]", "", s or "").lower()
+
+
+def search_channel(liver):
+    """既存データから推定できないライバーは search.list(100ユニット) で一度だけ公式チャンネルを探す"""
+    res = call("search", part="snippet", type="channel", q=f"{liver} にじさんじ", maxResults=5)
+    for it in res.get("items", []):
+        if _norm(liver) in _norm(it["snippet"]["title"]):
+            return it["snippet"]["channelId"]
+    return None
+
+
 def resolve_channels(perf):
     """既存データの動画IDから投稿チャンネルを多数決で推定（videos.list=1ユニット/50件）"""
     cmap = json.load(open(CHMAP, encoding="utf-8")) if os.path.exists(CHMAP) else {}
@@ -159,6 +187,14 @@ def resolve_channels(perf):
             ch, n = c.most_common(1)[0]
             if n >= 2 or len(items) == 1:
                 cmap[liver] = ch
+    missing = sorted({r["liver"] for r in perf if r.get("liver")} - set(cmap))
+    for liver in missing:
+        if "引退" in liver or "非公開" in liver:
+            continue
+        ch = search_channel(liver)
+        print(f"  channel search: {liver} -> {ch}")
+        if ch:
+            cmap[liver] = ch
     json.dump(cmap, open(CHMAP, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     return cmap
 
@@ -283,6 +319,8 @@ def merge(perf, api_records):
         key = (vid_of(r["youtube_url"]), r["timestamp"])
         if key in have:
             continue
+        if r.get("type") == "youtube-stream" and is_talk(r["title"]):
+            continue  # 過去に取り込んだトーク行もここで除外
         have.add(key)
         r = dict(r)
         h = hira(r["title"])
