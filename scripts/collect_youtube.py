@@ -128,8 +128,10 @@ def clean_cover_title(title, liver=""):
     head, *tail = re.split(r"歌ってみた|うたってみた", t, maxsplit=1)
     t = head if head.strip(" 　-") or not tail else tail[0]  # 「曲名 歌ってみた Buono!」→ 曲名
     # 「曲名 / アーティスト」等の後ろを落とす（「D/N/A / xx」のように空白付き区切りを優先）
-    t = re.split(r"\s+[/|｜]\s*|\s*[／￤]\s*", t, maxsplit=1)[0] if re.search(r"\s+[/|｜]|[／￤]", t) else t.split("/", 1)[0]
-    t = re.sub(r"\s+", " ", t).strip(" 　-－")  # 「ー」は曲名末尾の長音なので削らない
+    head = re.split(r"\s+[/|｜]\s*|\s*[／￤]\s*", t, maxsplit=1)[0] if re.search(r"\s+[/|｜]|[／￤]", t) else t.split("/", 1)[0]
+    t = head if not re.fullmatch(r"\s*\d+\s*", head) else t.rsplit("/", 1)[0]  # 「1/6の夢旅人」のような曲名中の / は切らない
+    t = re.sub(r"\s+", " ", t).strip(" 　-－")
+    t = re.sub(r"\s*[)）]+$", "", t) if t.count("(") + t.count("（") < t.count(")") + t.count("）") else t  # 「ー」は曲名末尾の長音なので削らない
     m = re.search(r"[「『](.+?)[」』]", t)  # 「オリジナル曲『xxx』」『曲名』歌ってみた 等は括弧の中を曲名とする
     if m:
         return m.group(1).strip()
