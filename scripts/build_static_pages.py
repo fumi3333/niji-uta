@@ -102,7 +102,7 @@ def main():
         by_song[r["title"]].append(r)
     n_liver, n_rows = len(by_liver), len(rows)
 
-    urls = ["/", "/popular/"]
+    urls = ["/", "/popular/", "/utattemita/"]
 
     # ライバー別ページ
     for liver, rs in by_liver.items():
@@ -127,6 +127,20 @@ def main():
         write(f"song/{slug(t)}/index.html", page(title, desc, f"{BASE}/song/{quote(slug(t))}/", f"「{t}」を歌ったにじさんじライバー", body))
         urls.append(f"/song/{quote(slug(t))}/")
         n_song += 1
+
+    # 歌ってみた（公式動画）一覧: YouTube API で収集した youtube-cover を新しい順に
+    covers = sorted((r for r in rows if r.get("type") == "youtube-cover"), key=lambda r: r.get("date", ""), reverse=True)
+    cc = collections.Counter(r["liver"] for r in covers)
+    chips = " ".join(f'<a href="/liver/{quote(slug(l))}/">{e(l)}({n})</a>' for l, n in cc.most_common())
+    ctable = "<table><thead><tr><th>公開日</th><th>曲名</th><th>歌唱ライバー</th><th>動画</th></tr></thead><tbody>" + "".join(
+        f'<tr><td>{e(r.get("date",""))}</td><td><a href="/song/{quote(slug(r["title"]))}/">{e(r["title"])}</a></td>'
+        f'<td><a href="/liver/{quote(slug(r["liver"]))}/">{e(r["liver"])}</a></td>'
+        f'<td><a href="{e(yt(r))}" rel="noopener nofollow" target="_blank">▶ YouTube</a></td></tr>' for r in covers) + "</tbody></table>"
+    write("utattemita/index.html", page(
+        f"にじさんじ 歌ってみた一覧（公式動画{len(covers)}本）｜にじ歌サーチ",
+        f"にじさんじライバーの歌ってみた・カバー・オリジナル曲の公式動画を新しい順に一覧。{len(cc)}人・{len(covers)}本。毎日自動更新。",
+        f"{BASE}/utattemita/", "にじさんじ 歌ってみた一覧（新着順）",
+        f'<p class="m">YouTube公式の歌ってみた動画 {len(covers)}本 / {len(cc)}人。毎日自動更新。歌枠の曲は <a href="/">全曲検索</a> から。</p><p>{chips}</p>' + ctable))
 
     # ライバー索引 / 人気曲を index と popular に事前描画
     liv_list = "".join(f'<li><a href="/liver/{quote(slug(l))}/">{e(l)}</a> <span class="m">({len(rs)})</span></li>'

@@ -14,8 +14,9 @@ PERF = os.path.join(DATA, "song_performances.json")
 CHMAP = os.path.join(DATA, "channel_map.json")
 STORE = os.path.join(DATA, "youtube_records.json")
 API = "https://www.googleapis.com/youtube/v3/"
-MAX_COMMENT_VIDEOS = int(os.environ.get("YT_MAX_COMMENT_VIDEOS", "60"))
+MAX_COMMENT_VIDEOS = int(os.environ.get("YT_MAX_COMMENT_VIDEOS", "200"))
 PER_CHANNEL = 30
+BACKFILL_PAGES = int(os.environ.get("YT_BACKFILL_PAGES", "3"))  # 1ページ=50本。1日あたり1チャンネル最大150本ずつ過去へ遡る
 # 配信直後はセトリコメントがまだ無いことが多いので、この日数が経つまでは seen にせず再挑戦する
 RETRY_DAYS = int(os.environ.get("YT_RETRY_DAYS", "7"))
 
@@ -162,6 +163,37 @@ def resolve_channels(perf):
     return cmap
 
 
+def batches(liver, ch, cursors, seen):
+    """新着(先頭30件) + 過去分バックフィル(カーソルを保存して毎回続きから BACKFILL_PAGES ページ)"""
+    pl_id = "UU" + ch[2:]
+    pl = call("playlistItems", part="contentDetails", playlistId=pl_id, maxResults=PER_CHANNEL)
+    ids = [i["contentDetails"]["videoId"] for i in pl.get("items", []) if i["contentDetails"]["videoId"] not in seen]
+    if ids:
+        yield ids
+    cur = cursors.setdefault(ch, {"token": None, "done": False, "started": False})
+    if cur["done"]:
+        return
+    token = cur["token"]
+    if not cur["started"]:  # 初回: 先頭ページを飛ばして2ページ目以降へ
+        pl = call("playlistItems", part="contentDetails", playlistId=pl_id, maxResults=50)
+        token, cur["started"] = pl.get("nextPageToken"), True
+        first = [i["contentDetails"]["videoId"] for i in pl.get("items", []) if i["contentDetails"]["videoId"] not in seen]
+        if first:
+            yield first
+    for _ in range(BACKFILL_PAGES):
+        if not token:
+            cur["done"] = True
+            break
+        pg = call("playlistItems", part="contentDetails", playlistId=pl_id, maxResults=50, pageToken=token)
+        token = pg.get("nextPageToken")
+        ids = [i["contentDetails"]["videoId"] for i in pg.get("items", []) if i["contentDetails"]["videoId"] not in seen]
+        if ids:
+            yield ids
+    cur["token"] = token
+    if not token:
+        cur["done"] = True
+
+
 def main():
     if not os.environ.get("YOUTUBE_API_KEY"):
         print("YOUTUBE_API_KEY not set; skip")
@@ -169,6 +201,7 @@ def main():
     perf = json.load(open(PERF, encoding="utf-8"))
     store = json.load(open(STORE, encoding="utf-8")) if os.path.exists(STORE) else {"seen": [], "records": []}
     seen = set(store["seen"])
+    cursors = store.setdefault("cursors", {})
     known_vids = {vid_of(r.get("youtube_url")) for r in perf if not str(r.get("type", "")).startswith("youtube")}
     cmap = resolve_channels(perf)
     print(f"channels resolved: {len(cmap)}")
@@ -177,54 +210,56 @@ def main():
     stats = collections.Counter()
     recent_cutoff = datetime.date.today() - datetime.timedelta(days=RETRY_DAYS)
     for liver, ch in cmap.items():
-        pl = call("playlistItems", part="contentDetails", playlistId="UU" + ch[2:], maxResults=PER_CHANNEL)
-        ids = [i["contentDetails"]["videoId"] for i in pl.get("items", []) if i["contentDetails"]["videoId"] not in seen]
-        if not ids:
-            continue
-        vids = call("videos", part="snippet,contentDetails", id=",".join(ids)).get("items", [])
-        for v in vids:
-            vid, sn = v["id"], v["snippet"]
-            # 配信予定・配信中は duration が無い/未確定なので、アーカイブ化してから拾う（seen にしない）
-            if sn.get("liveBroadcastContent", "none") != "none" or "duration" not in v.get("contentDetails", {}):
-                stats["live/upcoming"] += 1
-                continue
-            title, dur = sn["title"], iso_secs(v["contentDetails"]["duration"])
-            url = f"https://youtu.be/{vid}"
-            day = sn["publishedAt"][:10]
-            seen.add(vid)
-            if STREAM_RE.search(title) and not STREAM_NG_RE.search(title) and dur >= 1800 and vid not in known_vids:
-                text = sn.get("description", "")
-                tss, src = parse_timestamps(text), "desc"
-                if not tss and comment_budget > 0:
-                    comment_budget -= 1
-                    src = "comment"
-                    cm = call("commentThreads", part="snippet", videoId=vid, order="relevance", maxResults=20, textFormat="plainText")
-                    for c in cm.get("items", []):  # 最初に見つかったものではなく一番セトリらしいコメントを採用
-                        c_sn = c["snippet"]["topLevelComment"]["snippet"]
-                        cand = parse_timestamps(html.unescape(c_sn.get("textOriginal") or c_sn.get("textDisplay", "")))
-                        if cand and setlist_score(cand) > setlist_score(tss):
-                            tss = cand
-                if not tss:
-                    stats["stream: no setlist"] += 1
-                    if datetime.date.fromisoformat(day) > recent_cutoff:
-                        seen.discard(vid)  # セトリコメントが付くのを待って次回再挑戦
-                    print(f"  [stream x] {liver} {vid} {title[:60]}")
+        for ids in batches(liver, ch, cursors, seen):
+            vids = call("videos", part="snippet,contentDetails", id=",".join(ids)).get("items", [])
+            for v in vids:
+                vid, sn = v["id"], v["snippet"]
+                # 配信予定・配信中は duration が無い/未確定なので、アーカイブ化してから拾う（seen にしない）
+                if sn.get("liveBroadcastContent", "none") != "none" or "duration" not in v.get("contentDetails", {}):
+                    stats["live/upcoming"] += 1
                     continue
-                stats["stream: parsed"] += 1
-                print(f"  [stream {len(tss):>2} {src}] {liver} {vid} {title[:50]} :: " + " | ".join(l for _, l in tss[:4]))
-                for sec, label in tss:
-                    t, a = split_song(label)
+                title, dur = sn["title"], iso_secs(v["contentDetails"]["duration"])
+                url = f"https://youtu.be/{vid}"
+                day = sn["publishedAt"][:10]
+                seen.add(vid)
+                if STREAM_RE.search(title) and not STREAM_NG_RE.search(title) and dur >= 1800 and vid not in known_vids:
+                    text = sn.get("description", "")
+                    tss, src = parse_timestamps(text), "desc"
+                    if not tss and comment_budget > 0:
+                        comment_budget -= 1
+                        src = "comment"
+                        cm = call("commentThreads", part="snippet", videoId=vid, order="relevance", maxResults=20, textFormat="plainText")
+                        for c in cm.get("items", []):  # 最初に見つかったものではなく一番セトリらしいコメントを採用
+                            c_sn = c["snippet"]["topLevelComment"]["snippet"]
+                            cand = parse_timestamps(html.unescape(c_sn.get("textOriginal") or c_sn.get("textDisplay", "")))
+                            if cand and setlist_score(cand) > setlist_score(tss):
+                                tss = cand
+                    if not tss and src == "desc":  # コメント取得枠が尽きた: 次回以降に回す
+                        stats["stream: deferred (comment budget)"] += 1
+                        seen.discard(vid)
+                        continue
+                    if not tss:
+                        stats["stream: no setlist"] += 1
+                        if datetime.date.fromisoformat(day) > recent_cutoff:
+                            seen.discard(vid)  # セトリコメントが付くのを待って次回再挑戦
+                        print(f"  [stream x] {liver} {vid} {title[:60]}")
+                        continue
+                    stats["stream: parsed"] += 1
+                    print(f"  [stream {len(tss):>2} {src}] {liver} {vid} {title[:50]} :: " + " | ".join(l for _, l in tss[:4]))
+                    for sec, label in tss:
+                        t, a = split_song(label)
+                        if t:
+                            new_records.append({"title": t, "artist": a, "liver": liver, "date": day, "timestamp": f"{sec//60}:{sec%60:02d}",
+                                                "youtube_url": f"{url}?t={sec}", "type": "youtube-stream"})
+                elif COVER_RE.search(title) and 90 <= dur <= 900 and vid not in known_vids:
+                    t = clean_cover_title(title, liver)
                     if t:
-                        new_records.append({"title": t, "artist": a, "liver": liver, "date": day, "timestamp": f"{sec//60}:{sec%60:02d}",
-                                            "youtube_url": f"{url}?t={sec}", "type": "youtube-stream"})
-            elif COVER_RE.search(title) and 90 <= dur <= 900 and vid not in known_vids:
-                t = clean_cover_title(title, liver)
-                if t:
-                    stats["cover"] += 1
-                    print(f"  [cover] {liver} {vid} {title[:60]} -> {t}")
-                    new_records.append({"title": t, "artist": "", "liver": liver, "date": day, "timestamp": "歌い出し",
-                                        "youtube_url": url, "type": "youtube-cover"})
+                        stats["cover"] += 1
+                        print(f"  [cover] {liver} {vid} {title[:60]} -> {t}")
+                        new_records.append({"title": t, "artist": "", "liver": liver, "date": day, "timestamp": "歌い出し",
+                                            "youtube_url": url, "type": "youtube-cover"})
     store["seen"] = sorted(seen)
+    print("backfill done: %d/%d channels" % (sum(1 for c in cursors.values() if c["done"]), len(cmap)))
     store["records"] += new_records
     json.dump(store, open(STORE, "w", encoding="utf-8"), ensure_ascii=False)
     print(f"new records: {len(new_records)}, total api records: {len(store['records'])}")
