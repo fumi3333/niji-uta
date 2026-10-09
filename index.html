@@ -437,6 +437,11 @@
       color: #24292f;
     }
 
+    .fav-btn {
+      background: none; border: none; cursor: pointer; font-size: 15px;
+      color: #c0c4c8; padding: 0 4px 0 0; line-height: 1; vertical-align: middle;
+    }
+    .fav-btn.on { color: #f5a623; }
     .btn-play {
       display: inline-block;
       background: #fff;
@@ -654,6 +659,7 @@
         <option value="">歌枠・歌ってみた すべて</option>
         <option value="cover">歌ってみた動画のみ</option>
         <option value="stream">歌枠のみ</option>
+        <option value="fav">★ お気に入りのみ</option>
       </select>
 
       <select id="sortSelect">
@@ -743,6 +749,29 @@
   <script>
     let allRecords = [];
     let currentFiltered = [];
+
+    // --- お気に入り (localStorage) ---
+    // データ更新で id が振り直されても保持できるよう、URL+曲名+ライバーをキーにする
+    const FAV_KEY = 'favorite_songs';
+    let favorites = new Set();
+    try { favorites = new Set(JSON.parse(localStorage.getItem(FAV_KEY) || '[]')); } catch (e) {}
+
+    function favKey(item) {
+      return `${item.youtube_url}|${item.title}|${item.liver}`;
+    }
+
+    function toggleFavorite(idx, e) {
+      if (e) e.stopPropagation();
+      const item = currentFiltered[idx];
+      if (!item) return;
+      const key = favKey(item);
+      if (favorites.has(key)) favorites.delete(key); else favorites.add(key);
+      try { localStorage.setItem(FAV_KEY, JSON.stringify([...favorites])); } catch (err) {
+        console.warn('localStorage save failed:', err);
+      }
+      if (document.getElementById('typeSelect').value === 'fav') applyFilterAndSort(false);
+      else renderTable();
+    }
 
     async function init() {
       try {
@@ -1039,6 +1068,7 @@
         const tsel = document.getElementById('typeSelect').value;
         if (tsel === 'cover' && item.type !== 'youtube-cover') return false;
         if (tsel === 'stream' && item.type === 'youtube-cover') return false;
+        if (tsel === 'fav' && !favorites.has(favKey(item))) return false;
         if (selectedLiver && item.liver !== selectedLiver) {
           return false;
         }
@@ -1233,7 +1263,10 @@
       countEl.textContent = `表示: ${currentFiltered.length.toLocaleString()} / ${allRecords.length.toLocaleString()} 件`;
 
       if (currentFiltered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: #888;">該当する歌唱データが見つかりませんでした。</td></tr>`;
+        const emptyMsg = document.getElementById('typeSelect').value === 'fav'
+          ? 'お気に入りはまだありません。曲名の左の ☆ を押すと追加できます。'
+          : '該当する歌唱データが見つかりませんでした。';
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; padding: 40px; color: #888;">${emptyMsg}</td></tr>`;
         return;
       }
 
@@ -1242,6 +1275,8 @@
       const html = displayRows.map((item, idx) => {
         const timeLabel = item.timestamp && item.timestamp !== "歌い出し" ? item.timestamp : "再生";
         const isCurrent = currentPlayingIndex === idx;
+        const isFav = favorites.has(favKey(item));
+        const favBtn = `<button type="button" class="fav-btn ${isFav ? 'on' : ''}" onclick="toggleFavorite(${idx}, event)" title="${isFav ? 'お気に入りから外す' : 'お気に入りに追加'}" aria-pressed="${isFav}">${isFav ? '★' : '☆'}</button>`;
         const userBadge = item.is_user_contributed ? `
           <span class="user-badge" title="${escapeHtml(item.comment ? 'ファン推薦: ' + item.comment : 'ファン推薦曲')}">★ ファン推薦</span>
         ` : '';
@@ -1252,7 +1287,7 @@
         return `
           <tr class="${isCurrent ? 'row-playing' : ''}" data-idx="${idx}">
             <td class="col-id">${idx + 1}</td>
-            <td class="col-title">${userBadge}${escapeHtml(item.title)}${deleteBtn}</td>
+            <td class="col-title">${favBtn}${userBadge}${escapeHtml(item.title)}${deleteBtn}</td>
             <td class="col-artist">${escapeHtml(item.artist)}</td>
             <td class="col-liver">
               <span class="liver-text" style="cursor: pointer; text-decoration: underline; text-decoration-color: #ced4da;" onclick="setQuickSearch('${escapeHtml(item.liver)}')" title="このライバーで絞り込む">
