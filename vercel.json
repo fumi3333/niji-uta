@@ -41,16 +41,6 @@
       "source": "/summary/",
       "destination": "/",
       "permanent": true
-    },
-    {
-      "source": "/utattemita",
-      "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/utattemita/",
-      "destination": "/",
-      "permanent": true
     }
   ]
 }
