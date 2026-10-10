@@ -20,6 +20,8 @@ PER_CHANNEL = 30
 BACKFILL_PAGES = int(os.environ.get("YT_BACKFILL_PAGES", "20"))  # 1ページ=50本。1日あたり1チャンネル最大1000本ずつ過去へ遡る
 # 配信直後はセトリコメントがまだ無いことが多いので、この日数が経つまでは seen にせず再挑戦する
 RETRY_DAYS = int(os.environ.get("YT_RETRY_DAYS", "7"))
+# それ以降もセトリが無かった動画は、コメントが後から付くことがあるので、この日数ごとに再挑戦する
+RECHECK_DAYS = int(os.environ.get("YT_RECHECK_DAYS", "30"))
 
 COVER_RE = re.compile(r"歌ってみた|うたってみた|\bcover(?:ed)?\b|【\s*MV\s*】|original\s*song|オリジナル曲", re.I)
 STREAM_RE = re.compile(r"歌枠|歌配信|うた枠|歌雑談|karaoke|singing|カラオケ", re.I)
@@ -56,10 +58,14 @@ def vid_of(url):
     return m.group(1) if m else None
 
 
+HMS_RE = re.compile(r"(?<!\d)(?:(\d{1,2})h)?(\d{1,2})m(\d{1,2})s")
+
+
 def parse_timestamps(text):
     """概要欄/コメントから (秒, 'ラベル') を抽出。連続2行以上あるときだけ採用する"""
     out = []
     for line in (text or "").splitlines():
+        line = HMS_RE.sub(lambda m: f"{int(m.group(1) or 0)}:{int(m.group(2)):02d}:{int(m.group(3)):02d}" if m.group(1) else f"{int(m.group(2))}:{int(m.group(3)):02d}", line, count=1)
         m = TS_RE.match(line)
         if not m:
             continue
@@ -199,9 +205,11 @@ def resolve_channels(perf):
     return cmap
 
 
-def batches(liver, ch, cursors, seen):
+def batches(liver, ch, cursors, seen, recheck=()):
     """新着(先頭30件) + 過去分バックフィル(カーソルを保存して毎回続きから BACKFILL_PAGES ページ)"""
     pl_id = "UU" + ch[2:]
+    if recheck:
+        yield list(recheck)
     pl = call("playlistItems", part="contentDetails", playlistId=pl_id, maxResults=PER_CHANNEL)
     ids = [i["contentDetails"]["videoId"] for i in pl.get("items", []) if i["contentDetails"]["videoId"] not in seen]
     if ids:
@@ -244,9 +252,21 @@ def main():
 
     new_records, comment_budget = [], MAX_COMMENT_VIDEOS
     stats = collections.Counter()
-    recent_cutoff = datetime.date.today() - datetime.timedelta(days=RETRY_DAYS)
+    today = datetime.date.today()
+    recent_cutoff = today - datetime.timedelta(days=RETRY_DAYS)
+    if "nosetlist" not in store:
+        # 初回移行: 以前の「確認済み」にはセトリ無しで諦めた動画も含まれるので、レコードを持つ動画以外を未確認に戻し、一覧を引き直す
+        got = {vid_of(r["youtube_url"]) for r in store["records"]}
+        seen &= got
+        for cur in cursors.values():
+            cur.update(token=None, done=False, started=False)
+    nosetlist = store.setdefault("nosetlist", {})  # {動画ID: [ライバー, 最後に確認した日]}
+    due = collections.defaultdict(list)
+    for vid, (lv, last) in nosetlist.items():
+        if (today - datetime.date.fromisoformat(last)).days >= RECHECK_DAYS:
+            due[lv].append(vid)
     for liver, ch in cmap.items():
-        for ids in batches(liver, ch, cursors, seen):
+        for ids in batches(liver, ch, cursors, seen, due.get(liver, ())):
             vids = call("videos", part="snippet,contentDetails", id=",".join(ids)).get("items", [])
             for v in vids:
                 vid, sn = v["id"], v["snippet"]
@@ -264,8 +284,10 @@ def main():
                     if not tss and comment_budget > 0:
                         comment_budget -= 1
                         src = "comment"
-                        cm = call("commentThreads", part="snippet", videoId=vid, order="relevance", maxResults=20, textFormat="plainText")
-                        for c in cm.get("items", []):  # 最初に見つかったものではなく一番セトリらしいコメントを採用
+                        items = []
+                        for order in ("relevance", "time"):  # セトリコメントは人気順の下や後から付くことが多い
+                            items += call("commentThreads", part="snippet", videoId=vid, order=order, maxResults=100, textFormat="plainText").get("items", [])
+                        for c in items:  # 最初に見つかったものではなく一番セトリらしいコメントを採用
                             c_sn = c["snippet"]["topLevelComment"]["snippet"]
                             cand = parse_timestamps(html.unescape(c_sn.get("textOriginal") or c_sn.get("textDisplay", "")))
                             if cand and setlist_score(cand) > setlist_score(tss):
@@ -278,9 +300,12 @@ def main():
                         stats["stream: no setlist"] += 1
                         if datetime.date.fromisoformat(day) > recent_cutoff:
                             seen.discard(vid)  # セトリコメントが付くのを待って次回再挑戦
+                        else:
+                            nosetlist[vid] = [liver, today.isoformat()]  # 古い動画は月1回だけ見直す
                         print(f"  [stream x] {liver} {vid} {title[:60]}")
                         continue
                     stats["stream: parsed"] += 1
+                    nosetlist.pop(vid, None)
                     print(f"  [stream {len(tss):>2} {src}] {liver} {vid} {title[:50]} :: " + " | ".join(l for _, l in tss[:4]))
                     for sec, label in tss:
                         t, a = split_song(label)
