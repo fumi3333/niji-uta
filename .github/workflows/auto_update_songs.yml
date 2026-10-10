@@ -51,3 +51,10 @@ jobs:
             git commit -m "chore(data): auto-update song database [skip ci]"
             git push origin master
           fi
+
+      - name: Notify search engines (IndexNow)
+        # push 後（Vercel が新ページを配信し始める頃）に通知。失敗しても無視
+        if: github.ref == 'refs/heads/master'
+        run: |
+          sleep 90
+          python scripts/indexnow.py || true
