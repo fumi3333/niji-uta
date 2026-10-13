@@ -389986,5 +389986,31 @@
     "kana_artist": "",
     "kana_liver": "ひぐちかえで ひぐち かえで でろーん デローン ひぐちもみじ ヒグチモミジ",
     "id": 31006
+  },
+  {
+    "title": "ソラニン",
+    "artist": "",
+    "liver": "葉加瀬冬雪",
+    "date": "2026-10-12",
+    "timestamp": "歌い出し",
+    "youtube_url": "https://youtu.be/Soqz7WaLb4Q",
+    "type": "youtube-cover",
+    "kana_title": "そらにん",
+    "kana_artist": "",
+    "kana_liver": "はかせふゆき はかせ ふゆき はかせふゆゆき ハカセフユユキ",
+    "id": 31007
+  },
+  {
+    "title": "SUPREMACY",
+    "artist": "",
+    "liver": "神田笑一",
+    "date": "2026-10-12",
+    "timestamp": "歌い出し",
+    "youtube_url": "https://youtu.be/BrSmObMeyjM",
+    "type": "youtube-cover",
+    "kana_title": "",
+    "kana_artist": "",
+    "kana_liver": "かんだしょういち かんだ しょういち かんだわらいいち カンダワライイチ",
+    "id": 31008
   }
 ]
