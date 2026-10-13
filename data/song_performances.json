@@ -390012,5 +390012,18 @@
     "kana_artist": "",
     "kana_liver": "かんだしょういち かんだ しょういち かんだわらいいち カンダワライイチ",
     "id": 31008
+  },
+  {
+    "title": "ファンファーレ",
+    "artist": "",
+    "liver": "甲斐田晴",
+    "date": "2026-10-13",
+    "timestamp": "歌い出し",
+    "youtube_url": "https://youtu.be/UMYrFoEiUK8",
+    "type": "youtube-cover",
+    "kana_title": "ふぁんふぁーれ",
+    "kana_artist": "",
+    "kana_liver": "かいだはる かいだせい カイダセイ",
+    "id": 31009
   }
 ]
