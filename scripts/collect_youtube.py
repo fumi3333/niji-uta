@@ -13,6 +13,7 @@ DATA = os.path.join(HERE, "..", "data")
 PERF = os.path.join(DATA, "song_performances.json")
 CHMAP = os.path.join(DATA, "channel_map.json")
 EXTRA = os.path.join(DATA, "extra_livers.json")
+NOTFOUND = os.path.join(DATA, "channel_notfound.json")
 MAX_NEW_CHANNEL_SEARCH = int(os.environ.get("YT_MAX_NEW_CHANNEL_SEARCH", "12"))
 STORE = os.path.join(DATA, "youtube_records.json")
 API = "https://www.googleapis.com/youtube/v3/"
@@ -199,9 +200,11 @@ def resolve_channels(perf):
     # 名簿(スプレッドシート由来)に無い新しいライバー。search.list は100ユニットなので1回の実行で探す人数に上限を置く
     if os.path.exists(EXTRA):
         missing += [n for n in json.load(open(EXTRA, encoding="utf-8")) if n not in cmap and n not in missing]
+    # 検索して見つからなかった名前は毎回100ユニットを無駄にしないよう記録する（名前を直したら一覧から消す）
+    nf = json.load(open(NOTFOUND, encoding="utf-8")) if os.path.exists(NOTFOUND) else []
     searched = 0
     for liver in missing:
-        if "引退" in liver or "非公開" in liver:
+        if "引退" in liver or "非公開" in liver or liver in nf:
             continue
         if searched >= MAX_NEW_CHANNEL_SEARCH:
             break
@@ -210,6 +213,9 @@ def resolve_channels(perf):
         print(f"  channel search: {liver} -> {ch}")
         if ch:
             cmap[liver] = ch
+        else:
+            nf.append(liver)
+    json.dump(nf, open(NOTFOUND, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     json.dump(cmap, open(CHMAP, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     return cmap
 
