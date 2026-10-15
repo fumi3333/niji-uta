@@ -12,6 +12,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "..", "data")
 PERF = os.path.join(DATA, "song_performances.json")
 CHMAP = os.path.join(DATA, "channel_map.json")
+EXTRA = os.path.join(DATA, "extra_livers.json")
+MAX_NEW_CHANNEL_SEARCH = int(os.environ.get("YT_MAX_NEW_CHANNEL_SEARCH", "12"))
 STORE = os.path.join(DATA, "youtube_records.json")
 API = "https://www.googleapis.com/youtube/v3/"
 # クォータ(1日10,000)の目安: チャンネル解決 search 100×未解決数(初回のみ) + 一覧/詳細 約42×94 + コメント 1×この値
@@ -194,9 +196,16 @@ def resolve_channels(perf):
             if n >= 2 or len(items) == 1:
                 cmap[liver] = ch
     missing = sorted({r["liver"] for r in perf if r.get("liver")} - set(cmap))
+    # 名簿(スプレッドシート由来)に無い新しいライバー。search.list は100ユニットなので1回の実行で探す人数に上限を置く
+    if os.path.exists(EXTRA):
+        missing += [n for n in json.load(open(EXTRA, encoding="utf-8")) if n not in cmap and n not in missing]
+    searched = 0
     for liver in missing:
         if "引退" in liver or "非公開" in liver:
             continue
+        if searched >= MAX_NEW_CHANNEL_SEARCH:
+            break
+        searched += 1
         ch = search_channel(liver)
         print(f"  channel search: {liver} -> {ch}")
         if ch:
@@ -351,7 +360,7 @@ def merge(perf, api_records):
         h = hira(r["title"])
         r["kana_title"] = h if h != r["title"] else ""
         r["kana_artist"] = ""
-        r["kana_liver"] = liver_kana.get(r["liver"], "")
+        r["kana_liver"] = liver_kana.get(r["liver"]) or hira(r["liver"])
         add.append(r)
     out = base + add
     for i, r in enumerate(out, 1):
