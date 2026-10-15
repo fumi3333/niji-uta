@@ -147,9 +147,9 @@ def main():
         f'<td><a href="/liver/{quote(slug(r["liver"]))}/">{e(r["liver"])}</a></td>'
         f'<td><a href="{e(yt(r))}" rel="noopener nofollow" target="_blank">▶ YouTube</a></td></tr>' for r in covers) + "</tbody></table>"
     write("utattemita/index.html", page(
-        f"にじさんじ 歌ってみた一覧（公式動画{len(covers)}本）｜にじ歌サーチ",
-        f"にじさんじライバーの歌ってみた・カバー・オリジナル曲の公式動画を新しい順に一覧。{len(cc)}人・{len(covers)}本。毎日自動更新。",
-        f"{BASE}/utattemita/", "にじさんじ 歌ってみた一覧（新着順）",
+        f"にじさんじ 歌ってみたまとめ（公式動画{len(covers)}本・新着順）｜にじ歌サーチ",
+        f"にじさんじライバーの歌ってみた・カバー・オリジナル曲の公式動画をまとめて新しい順に一覧。{len(cc)}人・{len(covers)}本。毎日自動更新。",
+        f"{BASE}/utattemita/", "にじさんじ 歌ってみたまとめ（新着順）",
         f'<p class="m">YouTube公式の歌ってみた動画 {len(covers)}本 / {len(cc)}人。毎日自動更新。歌枠の曲は <a href="/">全曲検索</a> から。</p><p>{chips}</p>' + ctable))
 
     # ライバー索引 / 人気曲を index と popular に事前描画

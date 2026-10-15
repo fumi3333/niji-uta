@@ -34,12 +34,12 @@
     },
     {
       "source": "/summary",
-      "destination": "/",
+      "destination": "/utattemita/",
       "permanent": true
     },
     {
       "source": "/summary/",
-      "destination": "/",
+      "destination": "/utattemita/",
       "permanent": true
     }
   ]
