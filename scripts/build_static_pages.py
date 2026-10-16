@@ -19,8 +19,12 @@ e = html.escape
 
 
 def clean(rows):
-    out = []
+    out, seen_keys = [], set()
     for r in rows:
+        k = (r.get("liver"), (r.get("title") or "").strip(), r.get("youtube_url"))
+        if k in seen_keys:
+            continue  # 完全重複行（シート側の二重登録）
+        seen_keys.add(k)
         t = (r.get("title") or "").strip()
         if not t or DATE_RE.match(t) or not r.get("liver"):
             continue
