@@ -354,13 +354,19 @@ def merge(perf, api_records):
     base = [r for r in perf if not str(r.get("type", "")).startswith("youtube")]
     liver_kana = {r["liver"]: r.get("kana_liver", "") for r in base}
     have = {(vid_of(r["youtube_url"]), r["timestamp"]) for r in base}
-    add = []
+    add, near = [], {}
     for r in api_records:
         key = (vid_of(r["youtube_url"]), r["timestamp"])
         if key in have:
             continue
         if r.get("type") == "youtube-stream" and is_talk(r["title"]):
             continue  # 過去に取り込んだトーク行もここで除外
+        if r.get("type") == "youtube-stream":  # 同じ配信内で同じ曲が5分以内に再登場 = 二重取り込み
+            sec = int(re.search(r"t=(\d+)", r["youtube_url"]).group(1)) if "t=" in r["youtube_url"] else 0
+            nt = re.sub(r"\s+", "", r["title"]).lower()
+            if any(abs(sec - o) <= 300 for o in near.get((key[0], nt), [])):
+                continue
+            near.setdefault((key[0], nt), []).append(sec)
         have.add(key)
         r = dict(r)
         h = hira(r["title"])
