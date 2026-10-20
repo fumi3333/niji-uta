@@ -15,6 +15,8 @@ DATA = os.path.join(ROOT, "data", "song_performances.json")
 BASE = "https://nijiuta.fumiproject.dev"
 DATE_RE = re.compile(r"^\d{4}[/.\-]\d{1,2}[/.\-]\d{1,2}$")
 BAD_SLUG = re.compile(r'[/\\?#%\s]')
+MIN_SONG_ROWS = 2  # 曲ページを作る最低件数。1件だけの曲名（多くは雑談の目次）はページを作らない
+SONG_PAGES = set()  # main() で曲ページを作る曲名を入れる。ページの無い曲名にはリンクを張らない
 e = html.escape
 
 
@@ -34,6 +36,12 @@ def clean(rows):
 
 def slug(s):
     return BAD_SLUG.sub("_", s.strip())
+
+
+def song_link(t):
+    if t in SONG_PAGES:
+        return f'<a href="/song/{quote(slug(t))}/">{e(t)}</a>'
+    return e(t)
 
 
 def yt(r):
@@ -76,7 +84,7 @@ def table(rows, show_liver=True, show_title=True):
         label = "▶ " + (ts if ts and ts != "歌い出し" else "再生")
         h += "<tr>"
         if show_title:
-            h += f'<td><a href="/song/{quote(slug(r["title"]))}/">{e(r["title"])}</a></td>'
+            h += f'<td>{song_link(r["title"])}</td>'
         h += f'<td>{e(r.get("artist") or "")}</td>'
         if show_liver:
             h += f'<td><a href="/liver/{quote(slug(r["liver"]))}/">{e(r["liver"])}</a></td>'
@@ -115,6 +123,7 @@ def main():
         by_liver[r["liver"]].append(r)
         by_song[r["title"]].append(r)
     n_liver, n_rows = len(by_liver), len(rows)
+    SONG_PAGES.update(t for t, rs in by_song.items() if len(rs) >= MIN_SONG_ROWS)
 
     urls = ["/", "/popular/", "/utattemita/"]
 
@@ -128,10 +137,10 @@ def main():
         write(f"liver/{slug(liver)}/index.html", page(title, desc, f"{BASE}/liver/{quote(slug(liver))}/", f"{liver} の歌枠セトリ・歌唱曲一覧", body))
         urls.append(f"/liver/{quote(slug(liver))}/")
 
-    # 曲別ページ（2ライバー以上 or 2件以上）
+    # 曲別ページ（MIN_SONG_ROWS 件以上）
     n_song = 0
     for t, rs in by_song.items():
-        if len(rs) < 2:
+        if t not in SONG_PAGES:
             continue
         livers = sorted({r["liver"] for r in rs})
         art = next((r["artist"] for r in rs if r.get("artist")), "")
@@ -147,7 +156,7 @@ def main():
     cc = collections.Counter(r["liver"] for r in covers)
     chips = " ".join(f'<a href="/liver/{quote(slug(l))}/">{e(l)}({n})</a>' for l, n in cc.most_common())
     ctable = "<table><thead><tr><th>公開日</th><th>曲名</th><th>歌ったライバー</th><th>動画</th></tr></thead><tbody>" + "".join(
-        f'<tr><td>{e(r.get("date",""))}</td><td><a href="/song/{quote(slug(r["title"]))}/">{e(r["title"])}</a></td>'
+        f'<tr><td>{e(r.get("date",""))}</td><td>{song_link(r["title"])}</td>'
         f'<td><a href="/liver/{quote(slug(r["liver"]))}/">{e(r["liver"])}</a></td>'
         f'<td><a href="{e(yt(r))}" rel="noopener nofollow" target="_blank">▶ YouTube</a></td></tr>' for r in covers) + "</tbody></table>"
     write("utattemita/index.html", page(
@@ -159,7 +168,7 @@ def main():
     # ライバー索引 / 人気曲を index と popular に事前描画
     liv_list = "".join(f'<li><a href="/liver/{quote(slug(l))}/">{e(l)}</a> <span class="m">({len(rs)})</span></li>'
                        for l, rs in sorted(by_liver.items(), key=lambda kv: -len(kv[1])))
-    pop = sorted(((t, rs) for t, rs in by_song.items() if len(rs) >= 2), key=lambda kv: -len(kv[1]))
+    pop = sorted(((t, rs) for t, rs in by_song.items() if t in SONG_PAGES), key=lambda kv: -len(kv[1]))
     pop_li = "".join(f'<li><a href="/song/{quote(slug(t))}/">{e(t)}</a> <span class="m">({len({r["liver"] for r in rs})}人)</span></li>' for t, rs in pop[:120])
     inject("index.html", f'<section style="max-width:1240px;margin:0 auto;padding:16px"><h2>ライバー別 歌枠セトリ</h2><ul class="c">{liv_list}</ul><h2>よく歌われる曲</h2><ul class="c">{pop_li}</ul></section>')
     pop_rows = "".join(f'<tr><td>{i}</td><td><a href="/song/{quote(slug(t))}/">{e(t)}</a></td><td>{e(next((r["artist"] for r in rs if r.get("artist")), ""))}</td><td>{len({r["liver"] for r in rs})}人 / {len(rs)}回</td></tr>' for i, (t, rs) in enumerate(pop[:100], 1))
