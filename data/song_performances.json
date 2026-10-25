@@ -592540,5 +592540,31 @@
     "kana_artist": "",
     "kana_liver": "れゔぃえりふぁ れびぃえりふぁ れゔぃ えりふぁ れゔぃ・えりふぁ レヴィ・エリファ",
     "id": 46587
+  },
+  {
+    "title": "オリオンをなぞる",
+    "artist": "",
+    "liver": "甲斐田晴",
+    "date": "2026-10-25",
+    "timestamp": "歌い出し",
+    "youtube_url": "https://youtu.be/gNRa1zMv_cw",
+    "type": "youtube-cover",
+    "kana_title": "おりおんをなぞる",
+    "kana_artist": "",
+    "kana_liver": "かいだはる かいだせい カイダセイ",
+    "id": 46588
+  },
+  {
+    "title": "乙女、パスタに感動",
+    "artist": "",
+    "liver": "周央サンゴ",
+    "date": "2026-10-25",
+    "timestamp": "歌い出し",
+    "youtube_url": "https://youtu.be/H9DcpfcbLx0",
+    "type": "youtube-cover",
+    "kana_title": "おとめ、ぱすたにかんどう",
+    "kana_artist": "",
+    "kana_liver": "しゅうおうさんご",
+    "id": 46589
   }
 ]
