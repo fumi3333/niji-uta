@@ -14,7 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA = os.path.join(ROOT, "data", "song_performances.json")
 BASE = "https://nijiuta.fumiproject.dev"
 DATE_RE = re.compile(r"^\d{4}[/.\-]\d{1,2}[/.\-]\d{1,2}$")
-BAD_SLUG = re.compile(r'[/\\?#%\s]')
+BAD_SLUG = re.compile(r'[/\\?#%\s:*<>"|]')
 MIN_SONG_ROWS = 2  # 曲ページを作る最低件数。1件だけの曲名（多くは雑談の目次）はページを作らない
 SONG_PAGES = set()  # main() で曲ページを作る曲名を入れる。ページの無い曲名にはリンクを張らない
 e = html.escape
@@ -35,7 +35,7 @@ def clean(rows):
 
 
 def slug(s):
-    return BAD_SLUG.sub("_", s.strip())
+    return BAD_SLUG.sub("_", s.strip()).strip(". ") or "item"
 
 
 def song_link(t):
@@ -48,17 +48,31 @@ def yt(r):
     return r.get("youtube_url") or ""
 
 
-STYLE = """<style>body{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;color:#1a1a1a;line-height:1.5}
+STYLE = """<style>body{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;color:#1a1a1a;line-height:1.5;-webkit-text-size-adjust:100%}
 header,main,footer{max-width:1100px;margin:0 auto;padding:12px 16px}header{border-bottom:2px solid #b0b0b0}
-h1{font-size:20px;margin:6px 0}h2{font-size:16px;margin:24px 0 8px}a{color:#0056b3}
-table{width:100%;border-collapse:collapse;font-size:13px}th,td{border-bottom:1px solid #dcdcdc;padding:6px 8px;text-align:left}
-th{background:#f4f5f7}.m{color:#666;font-size:12px}ul.c{columns:3 220px;list-style:none;padding:0}footer{border-top:1px solid #dcdcdc;margin-top:32px;font-size:12px;color:#666}</style>"""
+h1{font-size:20px;margin:6px 0;word-break:break-word}h2{font-size:16px;margin:24px 0 8px}a{color:#0056b3}
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;margin:12px 0;border:1px solid #dcdcdc;border-radius:4px}
+table{width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap}th,td{border-bottom:1px solid #dcdcdc;padding:6px 10px;text-align:left}
+th{background:#f4f5f7}.m{color:#666;font-size:12px}ul.c{columns:3 220px;list-style:none;padding:0}footer{border-top:1px solid #dcdcdc;margin-top:32px;font-size:12px;color:#666}
+@media (max-width:640px){
+header,main,footer{padding:10px 12px}
+h1{font-size:18px}
+h2{font-size:15px;margin:18px 0 6px}
+table{font-size:12px}
+th,td{padding:5px 7px}
+ul.c{columns:1}
+}
+/* Vercel Toolbar & Feedback overlay 完全非表示 */
+vercel-live-feedback,#vercel-toolbar,[data-vercel-toolbar],div:has(> vercel-live-feedback){
+display:none!important;visibility:hidden!important;pointer-events:none!important;width:0!important;height:0!important;opacity:0!important}
+</style>"""
 
 
 def page(title, desc, canon, h1, body, ld=None):
     ld_s = f'<script type="application/ld+json">{json.dumps(ld, ensure_ascii=False)}</script>' if ld else ""
     return f"""<!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="vercel-toolbar" content="off">
 <title>{e(title)}</title><meta name="description" content="{e(desc)}">
 <link rel="canonical" href="{canon}"><meta property="og:title" content="{e(title)}"><meta property="og:description" content="{e(desc)}">
 <meta property="og:type" content="website"><meta property="og:url" content="{canon}">{ld_s}{STYLE}</head><body>
@@ -78,7 +92,7 @@ def kind(r):
 
 
 def table(rows, show_liver=True, show_title=True):
-    h = "<table><thead><tr>" + ("<th>曲名</th>" if show_title else "") + "<th>原曲アーティスト</th>" + ("<th>歌ったライバー</th>" if show_liver else "") + "<th>種類</th><th>再生</th></tr></thead><tbody>"
+    h = '<div class="table-wrap"><table><thead><tr>'  + ("<th>曲名</th>" if show_title else "") + "<th>原曲アーティスト</th>" + ("<th>歌ったライバー</th>" if show_liver else "") + "<th>種類</th><th>再生</th></tr></thead><tbody>"
     for r in rows:
         ts = r.get("timestamp") or ""
         label = "▶ " + (ts if ts and ts != "歌い出し" else "再生")
@@ -90,7 +104,7 @@ def table(rows, show_liver=True, show_title=True):
             h += f'<td><a href="/liver/{quote(slug(r["liver"]))}/">{e(r["liver"])}</a></td>'
         h += f'<td>{kind(r)}</td>'
         h += f'<td><a href="{e(yt(r))}" rel="noopener nofollow" target="_blank">{e(label)}</a></td></tr>'
-    return h + "</tbody></table>"
+    return h + "</tbody></table></div>"
 
 
 def write(path, content):
@@ -155,10 +169,10 @@ def main():
     covers = sorted((r for r in rows if r.get("type") == "youtube-cover"), key=lambda r: r.get("date", ""), reverse=True)
     cc = collections.Counter(r["liver"] for r in covers)
     chips = " ".join(f'<a href="/liver/{quote(slug(l))}/">{e(l)}({n})</a>' for l, n in cc.most_common())
-    ctable = "<table><thead><tr><th>公開日</th><th>曲名</th><th>歌ったライバー</th><th>動画</th></tr></thead><tbody>" + "".join(
+    ctable = '<div class="table-wrap"><table><thead><tr><th>公開日</th><th>曲名</th><th>歌ったライバー</th><th>動画</th></tr></thead><tbody>' + "".join(
         f'<tr><td>{e(r.get("date",""))}</td><td>{song_link(r["title"])}</td>'
         f'<td><a href="/liver/{quote(slug(r["liver"]))}/">{e(r["liver"])}</a></td>'
-        f'<td><a href="{e(yt(r))}" rel="noopener nofollow" target="_blank">▶ YouTube</a></td></tr>' for r in covers) + "</tbody></table>"
+        f'<td><a href="{e(yt(r))}" rel="noopener nofollow" target="_blank">▶ YouTube</a></td></tr>' for r in covers) + "</tbody></table></div>"
     write("utattemita/index.html", page(
         f"にじさんじ 歌ってみたまとめ（公式動画{len(covers)}本・新着順）｜にじ歌サーチ",
         f"にじさんじライバーの歌ってみた・カバー・オリジナル曲の公式動画をまとめて新しい順に一覧。{len(cc)}人・{len(covers)}本。毎日自動更新。",
@@ -172,7 +186,7 @@ def main():
     pop_li = "".join(f'<li><a href="/song/{quote(slug(t))}/">{e(t)}</a> <span class="m">({len({r["liver"] for r in rs})}人)</span></li>' for t, rs in pop[:120])
     inject("index.html", f'<section style="max-width:1240px;margin:0 auto;padding:16px"><h2>ライバー別 歌枠セトリ</h2><ul class="c">{liv_list}</ul><h2>よく歌われる曲</h2><ul class="c">{pop_li}</ul></section>')
     pop_rows = "".join(f'<tr><td>{i}</td><td><a href="/song/{quote(slug(t))}/">{e(t)}</a></td><td>{e(next((r["artist"] for r in rs if r.get("artist")), ""))}</td><td>{len({r["liver"] for r in rs})}人 / {len(rs)}回</td></tr>' for i, (t, rs) in enumerate(pop[:100], 1))
-    inject("popular/index.html", f'<section style="max-width:1240px;margin:0 auto;padding:16px"><h2>歌われた人数ランキング TOP100</h2><table><thead><tr><th>順位</th><th>曲名</th><th>本家</th><th>歌唱</th></tr></thead><tbody>{pop_rows}</tbody></table></section>')
+    inject("popular/index.html", f'<section style="max-width:1240px;margin:0 auto;padding:16px"><h2>歌われた人数ランキング TOP100</h2><div class="table-wrap"><table><thead><tr><th>順位</th><th>曲名</th><th>本家</th><th>歌唱</th></tr></thead><tbody>{pop_rows}</tbody></table></div></section>')
 
     # サイトマップ
     today = date.today().isoformat()

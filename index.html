@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+  <meta name="vercel-toolbar" content="off">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>にじ歌サーチ - にじさんじ 歌枠・歌ってみた セトリ検索データベース（非公式）</title>
@@ -370,7 +371,57 @@
       border: 1px solid var(--border-dark);
       background: #fff;
       overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-x pan-y;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    @media (max-width: 640px) {
+      header { padding: 8px 12px; }
+      .brand-area h1 { font-size: 16px; }
+      .controls-wrapper { padding: 8px 10px; }
+      .controls { gap: 6px; }
+      .search-box { flex: 1 1 100%; min-width: 0; }
+      input[type="text"] { font-size: 14px; padding: 6px 8px; }
+      select { font-size: 12px; padding: 5px 6px; }
+      .tag-btn { padding: 2px 6px; font-size: 10.5px; }
+      .count-indicator { font-size: 11px; }
+      .add-song-header-btn { padding: 4px 8px; font-size: 11.5px; }
+      main { padding: 8px 10px 80px; }
+      th, td { padding: 6px 8px; font-size: 12px; }
+      .col-title { min-width: 120px; font-size: 12.5px; }
+      .col-artist { min-width: 90px; font-size: 11.5px; }
+      .col-liver { min-width: 80px; font-size: 11.5px; }
+      .col-date { width: 85px; font-size: 11px; }
+      .col-time { width: 60px; font-size: 11px; }
+      .col-action { width: 75px; }
+      .btn-play { padding: 2px 6px; font-size: 10px; }
+      .mini-player-container {
+        bottom: 0 !important;
+        right: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        border-radius: 12px 12px 0 0 !important;
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.4) !important;
+      }
+      .mini-player-title {
+        max-width: calc(100vw - 140px);
+      }
+    }
+
+    /* Vercel Toolbar & Feedback overlay 完全非表示 */
+    vercel-live-feedback,
+    #vercel-toolbar,
+    [data-vercel-toolbar],
+    div:has(> vercel-live-feedback) {
+      display: none !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      opacity: 0 !important;
+      overflow: hidden !important;
     }
     table {
       width: 100%;
