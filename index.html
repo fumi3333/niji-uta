@@ -809,6 +809,8 @@
   <script>
     let allRecords = [];
     let currentFiltered = [];
+    let displayedCount = 100;
+    const PAGE_SIZE = 100;
 
     // --- お気に入り (localStorage) ---
     // データ更新で id が振り直されても保持できるよう、URL+曲名+ライバーをキーにする
@@ -1088,11 +1090,231 @@
       }
     }
 
+    // --- 高度な検索エンジン・表記揺れ・エイリアス辞書 ---
+    const ALIAS_MAP = {
+      // 主要アーティスト（ひらがな・英字・略称の相互展開）
+      'よあそび': ['yoasobi', '幾田りら', 'ikura', 'ayase'],
+      'yoasobi': ['よあそび', '幾田りら', 'ikura', 'ayase'],
+      'ひげだん': ['official髭男dism', '髭男', 'ひげだんでぃずむ'],
+      'おふぃしゃるひげだんでぃずむ': ['official髭男dism', 'ひげだん', '髭男'],
+      'official髭男dism': ['ひげだん', '髭男', 'おふぃしゃるひげだんでぃずむ'],
+      'ずとまよ': ['ずっと真夜中でいいのに', 'zutomayo', 'acaね'],
+      'ずっと真夜中でいいのに': ['ずとまよ', 'zutomayo'],
+      'zutomayo': ['ずっと真夜中でいいのに', 'ずとまよ'],
+      'せかおわ': ['sekainoowari', '世界の終わり', 'セカイノオワリ'],
+      'sekainoowari': ['せかおわ', '世界の終わり'],
+      'ばっくなんばー': ['backnumber', 'バックナンバー'],
+      'backnumber': ['ばっくなんばー', 'バックナンバー'],
+      'きんぐぬー': ['kinggnu', 'キングヌー'],
+      'kinggnu': ['きんぐぬー', 'キングヌー'],
+      'みせす': ['mrsgreenapple', 'ミセス', 'ミセスクリ-ンアップル'],
+      'mrsgreenapple': ['みせす', 'ミセス'],
+      'ばんぷ': ['bumpofchicken', 'バンプ', 'バンプオブチキン'],
+      'bumpofchicken': ['ばんぷ', 'バンプ'],
+      'らっど': ['radwimps', 'ラッド', 'ラッドウィンプス'],
+      'radwimps': ['らっど', 'ラッド'],
+      'わんおく': ['oneokrock', 'ワンオク'],
+      'oneokrock': ['わんおく', 'ワンオク'],
+      'ゆにぞん': ['unisonsquaregarden', 'ユニゾン'],
+      'unisonsquaregarden': ['ゆにぞん', 'ユニゾン'],
+      'ばうんでぃ': ['vaundy', 'バウンディ'],
+      'vaundy': ['ばうんでぃ', 'バウンディ'],
+      'あど': ['ado', 'アド'],
+      'ado': ['あど', 'アド'],
+      'えめ': ['aimer', 'エメ'],
+      'aimer': ['えめ', 'エメ'],
+      'りさ': ['lisa', 'リサ'],
+      'lisa': ['りさ', 'リサ'],
+      'いぶ': ['eve', 'イブ'],
+      'eve': ['いぶ', 'イブ'],
+      'かなりあ': ['kanaria', 'カナリア'],
+      'kanaria': ['かなりあ', 'カナリア'],
+      'でこ': ['deco27', 'デコ', 'でこにーな'],
+      'deco27': ['でこ', 'でこにーな', 'deco*27'],
+      'はにわ': ['honeyworks', 'ハニワ', 'ハニーワークス'],
+      'honeyworks': ['はにわ', 'ハニワ'],
+      'つゆ': ['tuyu', 'ツユ'],
+      'tuyu': ['つゆ', 'ツユ'],
+      'よねづ': ['米津玄師', 'よねづけんし', 'hachi', 'ハチ'],
+      'よねづけんし': ['米津玄師', 'よねづ', 'hachi', 'ハチ'],
+      'yonezu': ['米津玄師', 'よねづけんし'],
+      'あいみょん': ['aimyon', 'アイミョン'],
+      'aimyon': ['あいみょん', 'アイミョン'],
+      'ほしのげん': ['星野源'],
+      'うただひかる': ['宇多田ヒカル'],
+      'しいなりんご': ['椎名林檎', '東京事変'],
+      'とうきょうじへん': ['東京事変', '椎名林檎'],
+      'ゆうり': ['優里'],
+      'ぴのきおぴー': ['ピノキオピー', 'pinocchiop'],
+      'pinocchiop': ['ピノキオピー', 'ぴのきおぴー'],
+      'しゅどう': ['syudou'],
+      'syudou': ['しゅどう'],
+      'すりぃ': ['three'],
+      'おれんじすたー': ['orangestar'],
+      'orangestar': ['おれんじすたー'],
+      'ねる': ['neru'],
+      'neru': ['ねる'],
+
+      // 主要人気曲（ひらがな・カタカナ・英字）
+      'きんぐ': ['king'],
+      'king': ['きんぐ'],
+      'ぷりてんだー': ['pretender'],
+      'pretender': ['ぷりてんだー'],
+      'れもん': ['lemon'],
+      'lemon': ['れもん'],
+      'あいどる': ['idol', 'アイドル'],
+      'idol': ['あいどる', 'アイドル'],
+      'しるえっと': ['silhouette', 'シルエット'],
+      'どらいふらわー': ['dryflower', 'ドライフラワー'],
+      'dryflower': ['どらいふらわー', 'ドライフラワー'],
+      'くらいべいびー': ['crybaby'],
+      'crybaby': ['くらいべいびー'],
+      'すのはれ': ['snowhalation', 'スノーハレーション'],
+      'snowhalation': ['すのはれ', 'スノーハレーション'],
+      'ごっどのーず': ['godknows'],
+      'godknows': ['ごっどのーず'],
+      'ざんきょうさんか': ['残響散歌'],
+      'よるにかける': ['夜に駆ける'],
+      'かいじゅうのはなうた': ['怪獣の花唄'],
+      'さまーたいむれこーど': ['サマータイムレコード'],
+      'あおとなつ': ['青と夏'],
+      'てんびょうのうた': ['点描の唄'],
+      'まるのthatsさでぃすてぃっく': ['丸の内サディスティック'],
+      'まるのうちさでぃすてぃっく': ['丸の内サディスティック'],
+      'ふぉにい': ['フォニイ', 'phony'],
+      'ふぉにー': ['フォニイ', 'phony'],
+      'phony': ['フォニイ', 'ふぉにい'],
+      'しゃるる': ['charles', 'シャルル'],
+      'charles': ['しゃるる', 'シャルル'],
+      'ろき': ['roki', 'ロキ'],
+      'roki': ['ろき', 'ロキ'],
+      'べのむ': ['venom', 'ベノム'],
+      'venom': ['べのむ', 'ベノム'],
+      'ゔぁんぱいあ': ['vampire', 'ヴァンパイア', 'バンパイア'],
+      'ばんぱいあ': ['vampire', 'ヴァンパイア', 'バンパイア'],
+      'vampire': ['ゔぁんぱいあ', 'ヴァンパイア', 'ばんぱいあ'],
+      'ぐっばいせんげん': ['グッバイ宣言'],
+      'めふぃすと': ['メフィスト'],
+
+      // ライバー愛称・ローマ字
+      'くずは': ['葛葉', 'kuzuha'],
+      'kuzuha': ['葛葉', 'くずは'],
+      'かなえ': ['叶', 'kanae'],
+      'kanae': ['叶', 'かなえ'],
+      'けんもち': ['剣持刀也', 'kenmochi', '顎'],
+      'kenmochi': ['剣持刀也', 'けんもち'],
+      'みと': ['月ノ美兎', '委員長', 'mito'],
+      'いいんちょう': ['月ノ美兎'],
+      'mito': ['月ノ美兎'],
+      'でろーん': ['樋口楓', 'kaede'],
+      'かえで': ['樋口楓'],
+      'ほしかわ': ['星川サラ', 'hoshikawa', 'さら'],
+      'hoshikawa': ['星川サラ', 'ほしかわ'],
+      'ふわっち': ['不破湊', 'fuwa'],
+      'fuwa': ['不破湊', 'ふわっち'],
+      'しゃちょう': ['加賀美ハヤト', 'kagami'],
+      'kagami': ['加賀美ハヤト'],
+      'りゅーしぇん': ['緑仙', 'ryushen'],
+      'りゅしぇん': ['緑仙', 'ryushen'],
+      'ryushen': ['緑仙', 'りゅーしぇん'],
+      'あきな': ['三枝明那', 'saegusa'],
+      'saegusa': ['三枝明那'],
+      'れゔぃ': ['レヴィ・エリファ', 'levi'],
+      'れび': ['レヴィ・エリファ', 'levi'],
+      'levi': ['レヴィ・エリファ', 'れゔぃ'],
+      'ちま': ['町田ちま', 'chima'],
+      'chima': ['町田ちま'],
+      'かいだ': ['甲斐田晴', 'kaida'],
+      'kaida': ['甲斐田晴'],
+      'いぬい': ['戌亥とこ', 'inui'],
+      'inui': ['戌亥とこ'],
+      'さろめ': ['壱百満天原サロメ', 'salome'],
+      'salome': ['壱百満天原サロメ'],
+      'ひばり': ['渡会雲雀', 'hibari'],
+      'hibari': ['渡会雲雀'],
+      'とうどう': ['東堂コハク', 'kohaku'],
+      'kohaku': ['東堂コハク'],
+      'くれあ': ['シスタークレア', 'claire'],
+      'claire': ['シスタークレア'],
+      'どーら': ['ドーラ', 'dola'],
+      'dola': ['ドーラ'],
+      'ちぐさ': ['西園チグサ', 'chigusa'],
+      'chigusa': ['西園チグサ']
+    };
+
+    const ROMAJI_TABLE = [
+      ['kya', 'きゃ'], ['kyu', 'きゅ'], ['kyo', 'きょ'],
+      ['sha', 'しゃ'], ['shu', 'しゅ'], ['sho', 'しょ'], ['shi', 'し'],
+      ['cha', 'ちゃ'], ['chu', 'ちゅ'], ['cho', 'ちょ'], ['chi', 'ち'],
+      ['nya', 'にゃ'], ['nyu', 'にゅ'], ['nyo', 'にょ'],
+      ['hya', 'ひゃ'], ['hyu', 'ひゅ'], ['hyo', 'ひょ'],
+      ['mya', 'みゃ'], ['myu', 'みゅ'], ['myo', 'みょ'],
+      ['rya', 'りゃ'], ['ryu', 'りゅ'], ['ryo', 'りょ'],
+      ['gya', 'ぎゃ'], ['gyu', 'ぎゅ'], ['gyo', 'ぎょ'],
+      ['ja', 'じゃ'], ['ju', 'じゅ'], ['jo', 'じょ'], ['ji', 'じ'],
+      ['bya', 'びゃ'], ['byu', 'びゅ'], ['byo', 'びょ'],
+      ['pya', 'ぴゃ'], ['pyu', 'ぴゅ'], ['pyo', 'ぴょ'],
+      ['tsu', 'つ'],
+      ['ka', 'か'], ['ki', 'き'], ['ku', 'く'], ['ke', 'け'], ['ko', 'こ'],
+      ['sa', 'さ'], ['si', 'し'], ['su', 'す'], ['se', 'せ'], ['so', 'そ'],
+      ['ta', 'た'], ['ti', 'ち'], ['tu', 'つ'], ['te', 'て'], ['to', 'と'],
+      ['na', 'な'], ['ni', 'に'], ['nu', 'ぬ'], ['ne', 'ね'], ['no', 'の'],
+      ['ha', 'は'], ['hi', 'ひ'], ['fu', 'ふ'], ['he', 'へ'], ['ho', 'ほ'],
+      ['ma', 'ま'], ['mi', 'み'], ['mu', 'む'], ['me', 'め'], ['mo', 'も'],
+      ['ya', 'や'], ['yu', 'ゆ'], ['yo', 'よ'],
+      ['ra', 'ら'], ['ri', 'り'], ['ru', 'る'], ['re', 'れ'], ['ro', 'ろ'],
+      ['wa', 'わ'], ['wo', 'を'], ['nn', 'ん'],
+      ['ga', 'が'], ['gi', 'ぎ'], ['gu', 'ぐ'], ['ge', 'げ'], ['go', 'ご'],
+      ['za', 'ざ'], ['zi', 'じ'], ['zu', 'ず'], ['ze', 'ぜ'], ['zo', 'ぞ'],
+      ['da', 'だ'], ['di', 'ぢ'], ['du', 'づ'], ['de', 'で'], ['do', 'ど'],
+      ['ba', 'ば'], ['bi', 'び'], ['bu', 'ぶ'], ['be', 'べ'], ['bo', 'ぼ'],
+      ['pa', 'ぱ'], ['pi', 'ぴ'], ['pu', 'ぷ'], ['pe', 'ぺ'], ['po', 'ぽ'],
+      ['va', 'ば'], ['vi', 'び'], ['vu', 'ぶ'], ['ve', 'べ'], ['vo', 'ぼ'],
+      ['a', 'あ'], ['i', 'い'], ['u', 'う'], ['e', 'え'], ['o', 'お'], ['n', 'ん']
+    ];
+
+    function romajiToHiragana(str) {
+      if (!str) return '';
+      let s = str.toLowerCase();
+      s = s.replace(/([bcdfghjklmpqrstvwxyz])\1/g, 'っ$1');
+      for (const [rom, hira] of ROMAJI_TABLE) {
+        s = s.split(rom).join(hira);
+      }
+      return s;
+    }
+
+    function katakanaToHiragana(str) {
+      if (!str) return '';
+      return str.replace(/[\u30a1-\u30f6]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60));
+    }
+
     function normalizeSearch(str) {
       if (!str) return '';
-      return String(str)
-        .toLowerCase()
-        .replace(/[\s\u3000\-_・/]+/g, ''); // 空白・ハイフン・中黒を完全無視して突合
+      let s = String(str).normalize('NFKC').toLowerCase();
+      s = katakanaToHiragana(s);
+      s = s.replace(/ゔぁ/g, 'ば').replace(/ゔぃ/g, 'び').replace(/ゔぇ/g, 'べ').replace(/ゔぉ/g, 'ぼ').replace(/ゔ/g, 'ぶ');
+      // 記号・空白・長音符の除去
+      s = s.replace(/[\s\u3000\-_./・!?,:;~〜()\[\]「」『』"\'\+*★☆♥♡＆&％%＝=ー\\<>]+/g, '');
+      return s;
+    }
+
+    // 検索語を展開（表記揺れ・同義語・ひらがな・ローマ字）
+    function expandQueryWord(word) {
+      const norm = normalizeSearch(word);
+      const romaNorm = normalizeSearch(romajiToHiragana(word));
+      const set = new Set();
+      if (norm) set.add(norm);
+      if (romaNorm) set.add(romaNorm);
+
+      for (const key of [norm, romaNorm, word.toLowerCase()]) {
+        if (ALIAS_MAP[key]) {
+          for (const alias of ALIAS_MAP[key]) {
+            const na = normalizeSearch(alias);
+            if (na) set.add(na);
+          }
+        }
+      }
+      return Array.from(set).filter(Boolean);
     }
 
     function setQuickSearch(word) {
@@ -1330,7 +1552,7 @@
         return;
       }
 
-      const displayRows = currentFiltered.slice(0, 200);
+      const displayRows = currentFiltered.slice(0, displayedCount);
 
       const html = displayRows.map((item, idx) => {
         const [kindText, kindClass] = kindLabel(item);
@@ -1368,10 +1590,35 @@
       }).join('');
 
       tbody.innerHTML = html;
-      if (currentFiltered.length > 200) {
-        tbody.innerHTML += `<tr><td colspan="7" style="text-align:center; padding:12px; background:#f8f9fa; color:#666; font-size:12px;">上位200件を表示中（検索でさらに絞り込めます）</td></tr>`;
+      if (displayedCount < currentFiltered.length) {
+        const remaining = currentFiltered.length - displayedCount;
+        tbody.innerHTML += `
+          <tr id="loadMoreRow">
+            <td colspan="7" style="text-align:center; padding:16px; background:#f8f9fa;">
+              <button type="button" id="loadMoreBtn" onclick="loadMoreRows()" style="padding:10px 24px; font-size:13px; font-weight:600; color:#0056b3; background:#fff; border:1px solid #ced4da; border-radius:6px; cursor:pointer; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                さらに表示（残り ${remaining.toLocaleString()} 件）
+              </button>
+            </td>
+          </tr>
+        `;
       }
     }
+
+    function loadMoreRows() {
+      if (displayedCount >= currentFiltered.length) return;
+      displayedCount += PAGE_SIZE;
+      renderTable();
+    }
+
+    // スクロールで下部に達したら自動で次を表示（無限スクロール）
+    window.addEventListener('scroll', () => {
+      if (displayedCount >= currentFiltered.length) return;
+      const scrollPos = window.innerHeight + window.scrollY;
+      const bottomPos = document.documentElement.offsetHeight - 400;
+      if (scrollPos >= bottomPos) {
+        loadMoreRows();
+      }
+    }, { passive: true });
 
     // データ内部の値を、見る人に伝わる表示ラベルに変換する
     function kindLabel(item) {
