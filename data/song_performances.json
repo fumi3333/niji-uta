@@ -593346,5 +593346,31 @@
     "kana_artist": "",
     "kana_liver": "しらすあやね",
     "id": 46649
+  },
+  {
+    "title": "デストロイアガール",
+    "artist": "",
+    "liver": "加賀美ハヤト",
+    "date": "2026-10-29",
+    "timestamp": "歌い出し",
+    "youtube_url": "https://youtu.be/D3Sr6snui2s",
+    "type": "youtube-cover",
+    "kana_title": "ですとろいあがーる",
+    "kana_artist": "",
+    "kana_liver": "かがみはやと かがみ はやと 社長 しゃちょう かがみはやと カガミハヤト",
+    "id": 46650
+  },
+  {
+    "title": "廃墟の国のアリス",
+    "artist": "",
+    "liver": "城瀬いすみ",
+    "date": "2026-10-29",
+    "timestamp": "歌い出し",
+    "youtube_url": "https://youtu.be/4aMPrJvo2W8",
+    "type": "youtube-cover",
+    "kana_title": "はいきょのくにのありす",
+    "kana_artist": "",
+    "kana_liver": "しろせいすみ",
+    "id": 46651
   }
 ]
