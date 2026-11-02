@@ -757,7 +757,7 @@
       </select>
 
       <select id="sortSelect">
-        <option value="date_desc">新着順</option>
+        <option value="date_desc">ライバーが歌った順（新着）</option>
         <option value="title_asc">曲名順 (あ→ん)</option>
         <option value="artist_asc">アーティスト名順</option>
         <option value="liver_asc">ライバー名順</option>
@@ -1409,12 +1409,28 @@
         item._normKanaLiver,
         item._normComment
       ].filter(Boolean).join(' ');
+      // 歌唱日スコアを事前キャッシュ
+      getDateScore(item);
     }
 
     // サジェスト用インデックス（全件走査を廃止しユニーク一覧から瞬時に取得）
     let suggestLivers = [];
     let suggestTitles = [];
     let suggestArtists = [];
+
+    // ライバーが実際に歌った日付（配信日・公開日）を数値スコア化（新着順ソート用）
+    function getDateScore(item) {
+      if (!item) return 0;
+      if (item._dateScore !== undefined) return item._dateScore;
+      const d = String(item.date || '');
+      const m = d.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+      if (m) {
+        item._dateScore = parseInt(m[1], 10) * 10000 + parseInt(m[2], 10) * 100 + parseInt(m[3], 10);
+      } else {
+        item._dateScore = 0;
+      }
+      return item._dateScore;
+    }
 
     function buildSuggestIndex() {
       const liverMap = new Map();
@@ -1539,12 +1555,14 @@
 
       currentFiltered = filtered;
 
-      // ソート処理（デフォルトの新着順は元配列がすでにID降順のため、全件時は無駄なソートをスキップして高速化）
+      // ソート処理（ライバーが歌った順 = 配信アーカイブ・歌ってみたの公開日付が新しい順）
       if (sortMode === 'date_desc') {
-        // 条件で絞り込まれた場合のみID降順を保証
-        if (currentFiltered.length < allRecords.length) {
-          currentFiltered.sort((a, b) => (b.id || 0) - (a.id || 0));
-        }
+        // 収集順(ID)ではなく、実際にライバーが歌った日付(date)の降順で整列
+        currentFiltered.sort((a, b) => {
+          const diff = getDateScore(b) - getDateScore(a);
+          if (diff !== 0) return diff;
+          return (b.id || 0) - (a.id || 0);
+        });
       } else if (sortMode === 'title_asc') {
         currentFiltered.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'ja'));
       } else if (sortMode === 'artist_asc') {
