@@ -922,6 +922,11 @@
         }
         
         const metaEl = document.getElementById('metaInfo');
+        // 全レコードを事前インデックス化（高速検索用キャッシュ）
+        for (let i = 0; i < allRecords.length; i++) {
+          preprocessRecord(allRecords[i]);
+        }
+        buildSuggestIndex();
         if (metaEl) {
           metaEl.textContent = `収録データ: ${allRecords.length.toLocaleString()}件`;
         }
@@ -1081,7 +1086,9 @@
       }
 
       // メモリ上の配列に追加
+      preprocessRecord(newSong);
       allRecords.unshift(newSong);
+      buildSuggestIndex();
 
       // モーダル閉じる
       closeAddSongModal();
@@ -1112,6 +1119,7 @@
       } catch (err) {}
 
       allRecords = allRecords.filter(s => s.id !== id);
+      buildSuggestIndex();
       applyFilterAndSort();
     }
 
@@ -1369,6 +1377,64 @@
       return s;
     }
 
+    // レコード事前インデックス化（検索時の超高速化用）
+    function preprocessRecord(item) {
+      item._normTitle = normalizeSearch(item.title);
+      item._normArtist = normalizeSearch(item.artist);
+      item._normLiver = normalizeSearch(item.liver);
+      item._normKanaTitle = normalizeSearch(item.kana_title);
+      item._normKanaArtist = normalizeSearch(item.kana_artist);
+      item._normKanaLiver = normalizeSearch(item.kana_liver);
+      item._searchTarget = [
+        item._normTitle,
+        item._normKanaTitle,
+        item._normArtist,
+        item._normKanaArtist,
+        item._normLiver,
+        item._normKanaLiver
+      ].filter(Boolean).join(' ');
+    }
+
+    // サジェスト用インデックス（全件走査を廃止しユニーク一覧から瞬時に取得）
+    let suggestLivers = [];
+    let suggestTitles = [];
+    let suggestArtists = [];
+
+    function buildSuggestIndex() {
+      const liverMap = new Map();
+      const titleMap = new Map();
+      const artistMap = new Map();
+
+      for (let i = 0; i < allRecords.length; i++) {
+        const r = allRecords[i];
+        if (r.liver && !liverMap.has(r.liver)) {
+          liverMap.set(r.liver, {
+            text: r.liver,
+            type: 'ライバー',
+            searchStr: ((r._normLiver || '') + ' ' + (r._normKanaLiver || '')).trim()
+          });
+        }
+        if (r.title && !titleMap.has(r.title)) {
+          titleMap.set(r.title, {
+            text: r.title,
+            type: '曲名',
+            searchStr: ((r._normTitle || '') + ' ' + (r._normKanaTitle || '')).trim()
+          });
+        }
+        if (r.artist && !artistMap.has(r.artist)) {
+          artistMap.set(r.artist, {
+            text: r.artist,
+            type: '本家',
+            searchStr: ((r._normArtist || '') + ' ' + (r._normKanaArtist || '')).trim()
+          });
+        }
+      }
+
+      suggestLivers = Array.from(liverMap.values());
+      suggestTitles = Array.from(titleMap.values());
+      suggestArtists = Array.from(artistMap.values());
+    }
+
     // 検索語を展開（表記揺れ・同義語・ひらがな・ローマ字）
     function expandQueryWord(word) {
       const norm = normalizeSearch(word);
@@ -1396,60 +1462,55 @@
     }
 
     function applyFilterAndSort(shouldUpdateUrl = true) {
+      displayedCount = PAGE_SIZE; // 絞り込み条件変更時はページネーション件数を初期化
+
       const rawQuery = document.getElementById('searchInput').value.trim();
       const selectedLiver = document.getElementById('liverSelect').value;
       const sortMode = document.getElementById('sortSelect').value;
+      const tsel = document.getElementById('typeSelect').value;
 
       if (shouldUpdateUrl) {
         updateUrlParams();
       }
 
       // 検索ワードを空白で分割（AND検索）
-      // 「にじさんじ」「歌ってみた」「歌枠」「2時3時」などの全体キーワードはストップワードとして除外（全件該当のため）
       const stopWords = ['にじさんじ', 'にじ', '歌ってみた', 'うたってみた', '歌枠', 'うたわく', '2時3時', '2じ3じ', 'vtuber', 'ブイチューバー'];
       let queryWords = rawQuery
         .split(/[\s\u3000]+/)
         .map(w => w.trim())
-        .filter(w => w.length > 0);
+        .filter(w => w.length > 0 && !stopWords.includes(w.toLowerCase()));
 
-      // 有効な個別検索語群（ストップワード除去）
-      const filteredWords = queryWords.filter(w => !stopWords.includes(w.toLowerCase()));
-      // もしユーザーが「にじさんじ 歌ってみた」だけを入力した場合は全件表示にする
-      const effectiveWords = filteredWords.length > 0 ? filteredWords : [];
+      // 検索キーワードの正規化はループの外で1回だけ実行（超高速化）
+      const normWords = queryWords.map(w => normalizeSearch(w)).filter(Boolean);
+      const wordsLen = normWords.length;
 
-      currentFiltered = allRecords.filter(item => {
-        const tsel = document.getElementById('typeSelect').value;
-        if (tsel === 'cover' && item.type !== 'youtube-cover') return false;
-        if (tsel === 'stream' && item.type === 'youtube-cover') return false;
-        if (tsel === 'fav' && !favorites.has(favKey(item))) return false;
-        if (selectedLiver && item.liver !== selectedLiver) {
-          return false;
+      const filtered = [];
+      const len = allRecords.length;
+
+      for (let i = 0; i < len; i++) {
+        const item = allRecords[i];
+
+        if (tsel === 'cover' && item.type !== 'youtube-cover') continue;
+        if (tsel === 'stream' && item.type === 'youtube-cover') continue;
+        if (tsel === 'fav' && !favorites.has(favKey(item))) continue;
+        if (selectedLiver && item.liver !== selectedLiver) continue;
+
+        if (wordsLen > 0) {
+          const target = item._searchTarget;
+          let match = true;
+          for (let j = 0; j < wordsLen; j++) {
+            if (!target.includes(normWords[j])) {
+              match = false;
+              break;
+            }
+          }
+          if (!match) continue;
         }
 
-        if (effectiveWords.length > 0) {
-          const normTitle = normalizeSearch(item.title);
-          const normArtist = normalizeSearch(item.artist);
-          const normLiver = normalizeSearch(item.liver);
-          const normKanaTitle = normalizeSearch(item.kana_title);
-          const normKanaArtist = normalizeSearch(item.kana_artist);
-          const normKanaLiver = normalizeSearch(item.kana_liver);
+        filtered.push(item);
+      }
 
-          // すべての単語が、曲名・アーティスト・ライバー（かな含む）のどこかに含まれているか (AND検索)
-          const allMatch = effectiveWords.every(word => {
-            const nw = normalizeSearch(word);
-            return normTitle.includes(nw) || 
-                   normArtist.includes(nw) || 
-                   normLiver.includes(nw) ||
-                   (normKanaTitle && normKanaTitle.includes(nw)) ||
-                   (normKanaArtist && normKanaArtist.includes(nw)) ||
-                   (normKanaLiver && normKanaLiver.includes(nw));
-          });
-
-          if (!allMatch) return false;
-        }
-
-        return true;
-      });
+      currentFiltered = filtered;
 
       // ソート
       if (sortMode === 'date_desc') {
@@ -1466,7 +1527,7 @@
       updateSuggestBox(rawQuery);
     }
 
-    // --- Google風サジェスト＆オートコンプリート機能 ---
+    // --- 超高速サジェスト＆オートコンプリート機能 ---
     let currentSuggestIndex = -1;
     let activeSuggestList = [];
 
@@ -1489,42 +1550,38 @@
         return;
       }
 
-      const candidates = new Map();
+      const results = [];
 
-      // ライバー名
-      allRecords.forEach(r => {
-        if (r.liver) {
-          const nL = normalizeSearch(r.liver);
-          const nKL = normalizeSearch(r.kana_liver);
-          if (nL.includes(normQ) || (nKL && nKL.includes(normQ))) {
-            candidates.set(`liver:${r.liver}`, { text: r.liver, type: 'ライバー' });
+      // 1. ライバー候補（最大3件）
+      for (let i = 0; i < suggestLivers.length; i++) {
+        const item = suggestLivers[i];
+        if (item.searchStr.includes(normQ)) {
+          results.push(item);
+          if (results.length >= 3) break;
+        }
+      }
+
+      // 2. 曲名候補（最大6件まで）
+      for (let i = 0; i < suggestTitles.length; i++) {
+        const item = suggestTitles[i];
+        if (item.searchStr.includes(normQ)) {
+          results.push(item);
+          if (results.length >= 6) break;
+        }
+      }
+
+      // 3. アーティスト候補（最大7件まで）
+      if (results.length < 7) {
+        for (let i = 0; i < suggestArtists.length; i++) {
+          const item = suggestArtists[i];
+          if (item.searchStr.includes(normQ)) {
+            results.push(item);
+            if (results.length >= 7) break;
           }
         }
-      });
+      }
 
-      // 曲名
-      allRecords.forEach(r => {
-        if (r.title && candidates.size < 8) {
-          const nT = normalizeSearch(r.title);
-          const nKT = normalizeSearch(r.kana_title);
-          if (nT.includes(normQ) || (nKT && nKT.includes(normQ))) {
-            candidates.set(`title:${r.title}`, { text: r.title, type: '曲名' });
-          }
-        }
-      });
-
-      // アーティスト名
-      allRecords.forEach(r => {
-        if (r.artist && candidates.size < 12) {
-          const nA = normalizeSearch(r.artist);
-          const nKA = normalizeSearch(r.kana_artist);
-          if (nA.includes(normQ) || (nKA && nKA.includes(normQ))) {
-            candidates.set(`artist:${r.artist}`, { text: r.artist, type: '本家' });
-          }
-        }
-      });
-
-      activeSuggestList = Array.from(candidates.values()).slice(0, 7);
+      activeSuggestList = results;
 
       if (activeSuggestList.length === 0) {
         suggestBox.style.display = 'none';
@@ -1731,7 +1788,27 @@
       applyFilterAndSort();
     }
 
-    document.getElementById('searchInput').addEventListener('input', () => applyFilterAndSort());
+    // 入力デバウンス＆IME（日本語入力中）考慮によりタイピングの引っかかりを完全解消
+    let searchDebounceTimer = null;
+    let isComposing = false;
+    const searchInput = document.getElementById('searchInput');
+
+    searchInput.addEventListener('compositionstart', () => {
+      isComposing = true;
+    });
+
+    searchInput.addEventListener('compositionend', () => {
+      isComposing = false;
+      applyFilterAndSort();
+    });
+
+    searchInput.addEventListener('input', () => {
+      if (isComposing) return;
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        applyFilterAndSort();
+      }, 70); // 70msの快適な追従ディレイ
+    });
     document.getElementById('liverSelect').addEventListener('change', () => applyFilterAndSort());
     document.getElementById('typeSelect').addEventListener('change', () => applyFilterAndSort());
     document.getElementById('sortSelect').addEventListener('change', () => applyFilterAndSort());

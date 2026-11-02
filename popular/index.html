@@ -192,9 +192,24 @@
     let filtered = [];
     let currentPlayingIndex = -1;
 
+    function norm(str) {
+      return String(str || '').toLowerCase().replace(/[\s\u3000\-_]+/g, '');
+    }
+
     async function init() {
       const res = await fetch('../data/song_performances.json');
       records = await res.json();
+      for (let i = 0; i < records.length; i++) {
+        const r = records[i];
+        r._searchTarget = [
+          norm(r.title),
+          norm(r.artist),
+          norm(r.liver),
+          norm(r.kana_title),
+          norm(r.kana_artist),
+          norm(r.kana_liver)
+        ].filter(Boolean).join(' ');
+      }
       applyFilter();
     }
 
@@ -204,18 +219,21 @@
     }
 
     function applyFilter() {
-      const q = document.getElementById('searchInput').value.trim().toLowerCase();
-      filtered = records.filter(r => {
-        if (!q) return true;
-        const norm = (str) => String(str || '').toLowerCase().replace(/[\s\u3000\-_]+/g, '');
-        const nq = norm(q);
-        return norm(r.title).includes(nq) || 
-               norm(r.artist).includes(nq) || 
-               norm(r.liver).includes(nq) || 
-               norm(r.kana_title).includes(nq) || 
-               norm(r.kana_artist).includes(nq) || 
-               norm(r.kana_liver).includes(nq);
-      });
+      const rawQ = document.getElementById('searchInput').value.trim();
+      const nq = norm(rawQ);
+
+      if (!nq) {
+        filtered = records;
+      } else {
+        const res = [];
+        const len = records.length;
+        for (let i = 0; i < len; i++) {
+          if (records[i]._searchTarget.includes(nq)) {
+            res.push(records[i]);
+          }
+        }
+        filtered = res;
+      }
 
       document.getElementById('countIndicator').textContent = `表示: ${filtered.length.toLocaleString()} / ${records.length.toLocaleString()} 件`;
       render();
@@ -302,7 +320,24 @@
       render();
     }
 
-    document.getElementById('searchInput').addEventListener('input', applyFilter);
+    let debounceTimer = null;
+    let isComposing = false;
+    const searchInput = document.getElementById('searchInput');
+
+    searchInput.addEventListener('compositionstart', () => {
+      isComposing = true;
+    });
+
+    searchInput.addEventListener('compositionend', () => {
+      isComposing = false;
+      applyFilter();
+    });
+
+    searchInput.addEventListener('input', () => {
+      if (isComposing) return;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(applyFilter, 70);
+    });
     init();
   </script>
 </body>
