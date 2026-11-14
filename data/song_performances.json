@@ -596336,5 +596336,44 @@
     "kana_artist": "",
     "kana_liver": "Claude Clawmark",
     "id": 46879
+  },
+  {
+    "title": "エンヴィキャットウォーク",
+    "artist": "",
+    "liver": "緑仙",
+    "date": "2026-11-14",
+    "timestamp": "歌い出し",
+    "youtube_url": "https://youtu.be/JskwgN1GU6I",
+    "type": "youtube-cover",
+    "kana_title": "えんゔぃきゃっとうぉーく",
+    "kana_artist": "",
+    "kana_liver": "りゅーしぇん りゅうしぇん りゅくせん みどりせん ミドリセン",
+    "id": 46880
+  },
+  {
+    "title": "目抜き通り",
+    "artist": "",
+    "liver": "える",
+    "date": "2026-11-14",
+    "timestamp": "歌い出し",
+    "youtube_url": "https://youtu.be/0Y3dV1aEDUk",
+    "type": "youtube-cover",
+    "kana_title": "めぬきとうり",
+    "kana_artist": "",
+    "kana_liver": "える エル える エル",
+    "id": 46881
+  },
+  {
+    "title": "シュガーソングとビターステップ",
+    "artist": "",
+    "liver": "宇佐美リト",
+    "date": "2026-11-14",
+    "timestamp": "歌い出し",
+    "youtube_url": "https://youtu.be/gi2V9GFC0ww",
+    "type": "youtube-cover",
+    "kana_title": "しゅがーそんぐとびたーすてっぷ",
+    "kana_artist": "",
+    "kana_liver": "うさみりと",
+    "id": 46882
   }
 ]
