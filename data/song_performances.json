@@ -602471,5 +602471,31 @@
     "kana_artist": "",
     "kana_liver": "い・ろは",
     "id": 47364
+  },
+  {
+    "title": "バイオレンストリガー",
+    "artist": "",
+    "liver": "司賀りこ",
+    "date": "2026-11-27",
+    "timestamp": "歌い出し",
+    "youtube_url": "https://youtu.be/wUrkmPjpUB4",
+    "type": "youtube-cover",
+    "kana_title": "ばいおれんすとりがー",
+    "kana_artist": "",
+    "kana_liver": "つかさがりこ",
+    "id": 47365
+  },
+  {
+    "title": "君が好きだと叫びたい",
+    "artist": "",
+    "liver": "北見遊征",
+    "date": "2026-11-27",
+    "timestamp": "歌い出し",
+    "youtube_url": "https://youtu.be/YcpZvKF2w9w",
+    "type": "youtube-cover",
+    "kana_title": "くんがすきだとさけびたい",
+    "kana_artist": "",
+    "kana_liver": "きたみゆうせい",
+    "id": 47366
   }
 ]
